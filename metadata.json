@@ -1,0 +1,6 @@
+{
+  "name": "Wayline",
+  "description": "A student bus transport registration form for entering contact details and selecting routes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
