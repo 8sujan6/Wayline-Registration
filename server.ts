@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
-
+import { db } from "./firebaseAdmin";
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -34,39 +34,65 @@ async function startServer() {
   }
 
   // API: Get all registrations
-  app.get("/api/registrations", (req, res) => {
-    const list = readRegistrations();
-    res.json({ success: true, registrations: list });
+  app.get("/api/registrations", async (req, res) => {
+    try {
+      const snapshot = await db.collection("registrations").get();
+
+      const registrations = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      res.json({
+        success: true,
+        registrations
+      });
+    } catch (error) {
+      console.error(error);
+
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch registrations."
+      });
+    }
   });
 
   // API: Save student registration
-  app.post("/api/register", (req, res) => {
-    const { name, usn, phone, email, boardingPoint, route } = req.body;
+  app.post("/api/register", async (req, res) => {
+    try {
+      const { name, usn, phone, email, boardingPoint, route } = req.body;
 
-    // Simple validation
-    if (!name || !usn || !phone || !email || !boardingPoint || !route) {
-      return res.status(400).json({ success: false, error: "Please fill out all fields." });
+      if (!name || !usn || !phone || !email || !boardingPoint || !route) {
+        return res.status(400).json({
+          success: false,
+          error: "Please fill out all fields."
+        });
+      }
+
+      await db.collection("registrations").add({
+        studentName: String(name).trim(),
+        usn: String(usn).trim().toUpperCase(),
+        phone: String(phone).trim(),
+        email: String(email).trim(),
+        boardingPoint: String(boardingPoint).trim(),
+        routeNo: String(route).trim(),
+        status: "Pending",
+        submittedAt: new Date()
+      });
+
+      return res.json({
+        success: true,
+        message: "Registration submitted successfully."
+      });
+
+    } catch (error) {
+      console.error(error);
+
+      return res.status(500).json({
+        success: false,
+        error: "Internal Server Error"
+      });
     }
-
-    const currentList = readRegistrations();
-    const newRecord = {
-      id: "REG_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
-      name: String(name).trim(),
-      usn: String(usn).trim().toUpperCase(),
-      phone: String(phone).trim(),
-      email: String(email).trim(),
-      boardingPoint: String(boardingPoint).trim(),
-      route: String(route).trim(),
-      createdAt: new Date().toISOString()
-    };
-
-    currentList.push(newRecord);
-    writeRegistrations(currentList);
-
-    return res.json({
-      success: true,
-      message: "we will contact the user abt the further steps via email shortly."
-    });
   });
 
   // API: Delete registration record (optional utility for UI cleanup)
