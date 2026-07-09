@@ -6,8 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
-firebase-service-account.json.json
 firebase-service-account.json
 wayline-f3392-firebase-adminsdk-fbsvc-595a5f132e.json
 .env
-src/firebase.ts
