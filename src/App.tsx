@@ -131,7 +131,8 @@ export default function App() {
       // Refresh records list
       fetchRegistrations();
     } catch (error) {
-      setFormError("Failed to submit registration. Please check your connection.");
+      console.error("Submission error details:", error);
+      setFormError(error instanceof Error ? `Failed to submit: ${error.message}` : "Failed to submit registration. Please check your connection.");
     } finally {
       setIsSubmitting(false);
     }
