@@ -17,7 +17,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { db } from "./firebase";
-import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, addDoc, getDocs, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
 
 interface StudentRegistration {
   id: string;
@@ -117,7 +117,7 @@ export default function App() {
         boardingPoint: boardingPoint.trim(),
         routeNo: route,
         status: "Pending",
-        submittedAt: new Date()
+        submittedAt: serverTimestamp()
       });
 
       setSubmitSuccess(true);
