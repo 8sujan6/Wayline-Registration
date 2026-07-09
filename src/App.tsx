@@ -16,6 +16,8 @@ import {
   ChevronDown,
   ShieldCheck
 } from "lucide-react";
+import { db } from "./firebase";
+import { collection, addDoc, getDocs, deleteDoc, doc } from "firebase/firestore";
 
 interface StudentRegistration {
   id: string;
@@ -64,13 +66,23 @@ export default function App() {
   const fetchRegistrations = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/registrations");
-      const data = await res.json();
-      if (data.success) {
-        setRegistrations(data.registrations);
-      }
+      const snapshot = await getDocs(collection(db, "registrations"));
+      const list = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.studentName || data.name || "",
+          usn: data.usn || "",
+          phone: data.phone || "",
+          email: data.email || "",
+          boardingPoint: data.boardingPoint || "",
+          route: data.routeNo || data.route || "",
+          createdAt: data.submittedAt ? (data.submittedAt.toDate ? data.submittedAt.toDate().toISOString() : data.submittedAt) : ""
+        };
+      });
+      setRegistrations(list);
     } catch (error) {
-      console.error("Failed to load registrations from backend", error);
+      console.error("Failed to load registrations from Firestore", error);
     } finally {
       setIsLoading(false);
     }
@@ -97,35 +109,27 @@ export default function App() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          usn: usn.trim().toUpperCase(),
-          phone: phone.trim(),
-          email: email.trim(),
-          boardingPoint: boardingPoint.trim(),
-          route
-        })
+      await addDoc(collection(db, "registrations"), {
+        studentName: name.trim(),
+        usn: usn.trim().toUpperCase(),
+        phone: phone.trim(),
+        email: email.trim(),
+        boardingPoint: boardingPoint.trim(),
+        routeNo: route,
+        status: "Pending",
+        submittedAt: new Date()
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setSubmitSuccess(true);
-        // Reset form fields
-        setName("");
-        setUsn("");
-        setPhone("");
-        setEmail("");
-        setBoardingPoint("");
-        setRoute("");
-        // Refresh records list from backend
-        fetchRegistrations();
-      } else {
-        setFormError(data.error || "An error occurred while submitting.");
-      }
+      setSubmitSuccess(true);
+      // Reset form fields
+      setName("");
+      setUsn("");
+      setPhone("");
+      setEmail("");
+      setBoardingPoint("");
+      setRoute("");
+      // Refresh records list
+      fetchRegistrations();
     } catch (error) {
       setFormError("Failed to submit registration. Please check your connection.");
     } finally {
@@ -136,13 +140,8 @@ export default function App() {
   // Delete registration handler
   const handleDelete = async (id: string) => {
     try {
-      const response = await fetch(`/api/registrations/${id}`, {
-        method: "DELETE"
-      });
-      const data = await response.json();
-      if (data.success) {
-        setRegistrations(prev => prev.filter(item => item.id !== id));
-      }
+      await deleteDoc(doc(db, "registrations", id));
+      setRegistrations(prev => prev.filter(item => item.id !== id));
     } catch (error) {
       console.error("Failed to delete registration", error);
     }
