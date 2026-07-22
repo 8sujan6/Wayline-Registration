@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  Bus, 
-  User, 
-  Hash, 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Navigation, 
-  CheckCircle, 
-  AlertCircle, 
-  Trash2, 
-  Search, 
-  Clock, 
+import {
+  Bus,
+  User,
+  Hash,
+  Phone,
+  Mail,
+  MapPin,
+  Navigation,
+  CheckCircle,
+  AlertCircle,
+  Trash2,
+  Search,
+  Clock,
   ChevronDown,
   ShieldCheck
 } from "lucide-react";
@@ -30,19 +30,296 @@ interface StudentRegistration {
   createdAt: string;
 }
 
-const BUS_ROUTES = [
-  "Route 01 — North Campus Hub (via Central Avenue)",
-  "Route 02 — South Plaza & Metro Link",
-  "Route 03 — West End Residences & Innovation Park",
-  "Route 04 — Eastern Gate & Hilltop Heights",
-  "Route 05 — Tech Park Expressway & Lakeview",
-  "Route 06 — Downtown Terminal & Central Library",
-  "Route 07 — Boulevard Ring Road & Green Gardens",
-  "Route 08 — North-West Suburbs & Sports Arena",
-  "Route 09 — South-East Corridor & Riverfront",
-  "Route 10 — Valley View & IT Zone Bypass",
-  "Route 11 — Airport Expressway Link",
-  "Route 12 — Heritage Circle & Old Town Square"
+interface PickupPoint {
+  stop: string;
+  time: string;
+}
+
+interface BusRoute {
+  id: string;
+  routeNo: string;
+  coordinator: string;
+  phone: string;
+  title: string;
+  stops: PickupPoint[];
+}
+
+const BUS_ROUTES: BusRoute[] = [
+  {
+    id: "02",
+    routeNo: "Route 02",
+    coordinator: "Ms. M D Meena Kumari",
+    phone: "9880582039",
+    title: "Route 02 — Shanthi Nagar to BMSIT&M (via MG Road, Ulsoor, RT Nagar, Hebbal)",
+    stops: [
+      { stop: "Shanthi Nagar Bus stop", time: "7:03 AM" },
+      { stop: "MG Road (Trinity Circle)", time: "7:13 AM" },
+      { stop: "Ulsoor Police Station", time: "7:18 AM" },
+      { stop: "Ulsoor Adarsha Theatre", time: "7:23 AM" },
+      { stop: "Shanthi Sagar Ulsoor Lake", time: "7:28 AM" },
+      { stop: "Thomas Cafe Petrol Bunk", time: "7:31 AM" },
+      { stop: "Coles Park", time: "7:33 AM" },
+      { stop: "Nandi Durga Road", time: "7:35 AM" },
+      { stop: "JC Tower Munireddy Palya (Snow City)", time: "7:38 AM" },
+      { stop: "Matadhalli Bus stop (Radhakrishna Theatre)", time: "7:42 AM" },
+      { stop: "RT Nagar Post Office", time: "7:46 AM" },
+      { stop: "RT Nagar Police Station", time: "7:49 AM" },
+      { stop: "CBI Bus Stop", time: "7:51 AM" },
+      { stop: "Hebbal Bus Stop", time: "7:53 AM" },
+      { stop: "BMSIT&M", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "03",
+    routeNo: "Route 03",
+    coordinator: "Mr. Puttalingaiah",
+    phone: "9980587049",
+    title: "Route 03 — Devegowda Petrol Bunk to BMSIT&M (via PES College, Rajaji Nagar, Yeshwanthapura)",
+    stops: [
+      { stop: "Devegowda Petrol Bunk", time: "6:48 AM" },
+      { stop: "Kamakya Fashion Factory", time: "6:50 AM" },
+      { stop: "Janatha Bazaar", time: "6:54 AM" },
+      { stop: "PES College", time: "6:57 AM" },
+      { stop: "Nayandahalli Junction", time: "7:00 AM" },
+      { stop: "KHB Colony", time: "7:08 AM" },
+      { stop: "Pavithra Paradise", time: "7:10 AM" },
+      { stop: "Basaveshwara Nagar Water Tank", time: "7:12 AM" },
+      { stop: "Shankar mutt", time: "7:18 AM" },
+      { stop: "Rajaji Nagar Metro Station", time: "7:20 AM" },
+      { stop: "Mahalakshmi Layout Entrance", time: "7:22 AM" },
+      { stop: "Mysore sandal soap factory", time: "7:23 AM" },
+      { stop: "Govardhan Theatre", time: "7:25 AM" },
+      { stop: "Yeshwanthapura fly over", time: "7:28 AM" },
+      { stop: "BMSIT&M", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "04",
+    routeNo: "Route 04",
+    coordinator: "Mr. Venkatasubbu Babu",
+    phone: "9481473174",
+    title: "Route 04 — Uttarahalli Bus Stand to BMSIT&M (via RR Nagar, Naagarabhavi, Laggeri, HMT Auditorium)",
+    stops: [
+      { stop: "Uttarahalli Bus Stand", time: "6:55 AM" },
+      { stop: "Patalamma Temple", time: "7:00 AM" },
+      { stop: "Nachiyar Café", time: "7:06 AM" },
+      { stop: "Gopalan Mall (RR Nagar)", time: "7:09 AM" },
+      { stop: "Jnanabharathi University Gate", time: "7:13 AM" },
+      { stop: "Jnanabharathi University Admin block", time: "7:16 AM" },
+      { stop: "Naagarabhavi Circle", time: "7:23 AM" },
+      { stop: "Maalgala", time: "7:25 AM" },
+      { stop: "Summanahalli Bridge", time: "7:28 AM" },
+      { stop: "Laggeri Pipeline", time: "7:29 AM" },
+      { stop: "Nandini Layout", time: "7:31 AM" },
+      { stop: "Rajkumar Memorial", time: "7:33 AM" },
+      { stop: "Modern Bakery Gate", time: "7:35 AM" },
+      { stop: "IBC Platinum City", time: "7:37 AM" },
+      { stop: "HMT Auditorium", time: "7:43 AM" },
+      { stop: "Gangamma Circle", time: "7:48 AM" },
+      { stop: "MS palya", time: "8:01 AM" },
+      { stop: "Sambram College", time: "8:08 AM" },
+      { stop: "BMSIT&M", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "05",
+    routeNo: "Route 05",
+    coordinator: "Mr. Shivamallu",
+    phone: "9972914945",
+    title: "Route 05 — Deepanjali Nagar to BMSIT&M (via Attiguppe, Yeshwanthpur, Ramaiah, Vidyaranyapura)",
+    stops: [
+      { stop: "Deepanjali Nagar BMTC Bus depot", time: "7:03 AM" },
+      { stop: "Attiguppe Metro Station", time: "7:10 AM" },
+      { stop: "Manuvana (Magadi Road Tollgate)", time: "7:18 AM" },
+      { stop: "Dhobi Ghat", time: "7:20 AM" },
+      { stop: "Shivanahalli", time: "7:21 AM" },
+      { stop: "Mahalakshmi Layout Entrance", time: "7:25 AM" },
+      { stop: "Mysore Sandal Soap Factory", time: "7:28 AM" },
+      { stop: "Yeshwanthpur", time: "7:32 AM" },
+      { stop: "Ramaiah College (Bombay Dying)", time: "7:36 AM" },
+      { stop: "Ramaiah SBI bank", time: "7:38 AM" },
+      { stop: "Mathikere Bus stop (Ayyappa Bakery)", time: "7:40 AM" },
+      { stop: "Gokula Bus stop", time: "7:43 AM" },
+      { stop: "Eachala mara", time: "7:50 AM" },
+      { stop: "Vidyaranyapura Last stop", time: "7:53 AM" },
+      { stop: "Jelli machine - Masjid", time: "7:58 AM" },
+      { stop: "Attur Layout (Hostel Turning)", time: "8:00 AM" },
+      { stop: "BMSIT&M Hostel", time: "8:05 AM" },
+      { stop: "BMSIT&M", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "06",
+    routeNo: "Route 06",
+    coordinator: "Mr. Chethan Ram L",
+    phone: "9844763036",
+    title: "Route 06 — BMSCE to BMSIT&M (via Chamarajpet, Malleswaram, BEL Circle, Gangamma Circle)",
+    stops: [
+      { stop: "BMSCE", time: "6:57 AM" },
+      { stop: "Ramakrishna Ashram", time: "6:59 AM" },
+      { stop: "Chamarajpet", time: "7:01 AM" },
+      { stop: "Goodshed Road", time: "7:04 AM" },
+      { stop: "Shantala Silk House", time: "7:08 AM" },
+      { stop: "Central Stop", time: "7:10 AM" },
+      { stop: "Malleswaram 13th cross", time: "7:13 AM" },
+      { stop: "Malleswaram 18th cross", time: "7:15 AM" },
+      { stop: "Tata Institute", time: "7:18 AM" },
+      { stop: "Sadhashiva Nagar Police Station", time: "7:20 AM" },
+      { stop: "MS Ramaiah Hospital", time: "7:22 AM" },
+      { stop: "Punjab National Bank", time: "7:26 AM" },
+      { stop: "Devasandra Bus Stop", time: "7:32 AM" },
+      { stop: "Kanthi Sweets New BEL Road", time: "7:35 AM" },
+      { stop: "BEL Circle", time: "7:38 AM" },
+      { stop: "HMT Gate (Ramachandra Pura)", time: "7:38 AM" },
+      { stop: "Gangamma Circle", time: "7:45 AM" },
+      { stop: "Airforce Camp", time: "7:48 AM" },
+      { stop: "MS Palya", time: "7:50 AM" },
+      { stop: "BMSIT&M Girls Hostel", time: "8:05 AM" },
+      { stop: "BMSITM", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "07",
+    routeNo: "Route 07",
+    coordinator: "Mrs. Swathi K S",
+    phone: "7760203107",
+    title: "Route 07 — Navaranga Theatre to BMSIT&M (via Malleswaram, Mekhri Circle, Sanjay Nagar, Yelahanka NES)",
+    stops: [
+      { stop: "Navaranga Theatre", time: "7:08 AM" },
+      { stop: "Mariyappana Palya", time: "7:10 AM" },
+      { stop: "Harichandra Ghat", time: "7:12 AM" },
+      { stop: "Devaiah Park", time: "7:14 AM" },
+      { stop: "Malleswaram Circle", time: "7:16 AM" },
+      { stop: "Malleswaram 8th cross", time: "7:18 AM" },
+      { stop: "Malleswaram 15th cross", time: "7:20 AM" },
+      { stop: "Chitramutt / Coffee Day", time: "7:22 AM" },
+      { stop: "8th main Ganesh Temple", time: "7:24 AM" },
+      { stop: "Malleswaram 18th cross", time: "7:26 AM" },
+      { stop: "Shadashiva Nagar Bhashyam Circle", time: "7:28 AM" },
+      { stop: "Mekhri Circle", time: "7:30 AM" },
+      { stop: "Aswath Nagar Bus Stop", time: "7:32 AM" },
+      { stop: "Geddalahalli Bus stop", time: "7:34 AM" },
+      { stop: "Sanjay Nagar Bus Stop", time: "7:36 AM" },
+      { stop: "Bhadrappa Layout", time: "7:40 AM" },
+      { stop: "Kodigehalli Gate", time: "7:48 AM" },
+      { stop: "Bydarayanapura (Udupi Kitchen)", time: "7:51 AM" },
+      { stop: "GKVK", time: "7:53 AM" },
+      { stop: "Aerodrome", time: "7:55 AM" },
+      { stop: "Yelahanka NES", time: "8:03 AM" },
+      { stop: "BMSIT&M", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "08",
+    routeNo: "Route 08",
+    coordinator: "Mr. Adhinarayana Reddy",
+    phone: "8660357519",
+    title: "Route 08 — BEL Circle to BMSIT&M (via Doddabommasandra Arch, Vidyaranyapura 1st Block)",
+    stops: [
+      { stop: "BEL Circle", time: "7:45 AM" },
+      { stop: "BEL colony", time: "7:46 AM" },
+      { stop: "Doddabommasandra Arch", time: "7:48 AM" },
+      { stop: "Chamundeshwari Layout", time: "7:49 AM" },
+      { stop: "Nanjappa Circle", time: "7:50 AM" },
+      { stop: "Vidyaranyapura 1st Block", time: "7:53 AM" },
+      { stop: "Vidyaranyapura Canara Bank", time: "7:54 AM" },
+      { stop: "Vidyaranyapura Post Office", time: "7:56 AM" },
+      { stop: "BMSIT&M Girls Hostel", time: "8:05 AM" },
+      { stop: "BMSIT&M Campus", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "09",
+    routeNo: "Route 09",
+    coordinator: "Mrs. Divya V",
+    phone: "7411233009",
+    title: "Route 09 — Sapthagiri Medical College to BMSIT&M (via Nagasandra Metro, Jalahalli Cross, Shettihalli)",
+    stops: [
+      { stop: "Sapthagiri Medical College", time: "7:08 AM" },
+      { stop: "Bagalakunte", time: "7:13 AM" },
+      { stop: "Nagasandra Metro Station", time: "7:17 AM" },
+      { stop: "8th Mile Bus stop", time: "7:20 AM" },
+      { stop: "Dasarahalli Bus stop", time: "7:24 AM" },
+      { stop: "Jalahalli Cross", time: "7:28 AM" },
+      { stop: "Sri Ayyapa Temple Bus Stop", time: "7:32 AM" },
+      { stop: "Shettihalli Bus Stop", time: "7:38 AM" },
+      { stop: "KH Halli Railway Bridge", time: "7:41 AM" },
+      { stop: "KG Halli (HMT WatchFactory)", time: "7:43 AM" },
+      { stop: "BMSIT&M Girls Hostel", time: "8:03 AM" },
+      { stop: "BMSIT&M", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "10",
+    routeNo: "Route 10",
+    coordinator: "Mr. Siddalingaswamy",
+    phone: "9844981592",
+    title: "Route 10 — Hoskote to BMSIT&M (via Budigere Cross, KR Puram, Ramamurthy Nagar, HBR Layout, Manyatha)",
+    stops: [
+      { stop: "Hoskote before Toll", time: "6:55 AM" },
+      { stop: "Budigere Cross", time: "7:00 AM" },
+      { stop: "Medahalli RTO Office", time: "7:10 AM" },
+      { stop: "TC Palya Signal", time: "7:15 AM" },
+      { stop: "KR Puram", time: "7:20 AM" },
+      { stop: "ITI Main Gate", time: "7:25 AM" },
+      { stop: "Ramamurthy Nagar Church", time: "7:30 AM" },
+      { stop: "Ramamurthy Nagar Aladamara", time: "7:32 AM" },
+      { stop: "Ramamurthy Nagar Central Bank", time: "7:34 AM" },
+      { stop: "Vijaya Bank Colony", time: "7:37 AM" },
+      { stop: "Kalyannagar Depot", time: "7:42 AM" },
+      { stop: "HBR Layout", time: "7:45 AM" },
+      { stop: "Manyatha Techpark", time: "7:48 AM" },
+      { stop: "Veeranna Palya", time: "7:52 AM" },
+      { stop: "BMSIT&M", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "11",
+    routeNo: "Route 11",
+    coordinator: "Dr. S Saranya",
+    phone: "9626707050",
+    title: "Route 11 — Marathahalli to BMSIT&M (via Indiranagar, Baiyappanahalli, Horamavu, Hennur Cross)",
+    stops: [
+      { stop: "Marathahalli", time: "6:45 AM" },
+      { stop: "KFC CMH Road Indiranagar", time: "7:05 AM" },
+      { stop: "New Thippasandra Main Road", time: "7:10 AM" },
+      { stop: "BEML Gate", time: "7:15 AM" },
+      { stop: "NGEF", time: "7:20 AM" },
+      { stop: "Baiyappanahalli Metro Station", time: "7:22 AM" },
+      { stop: "Bennaganahalli", time: "7:25 AM" },
+      { stop: "Kasthuri Nagar", time: "7:30 AM" },
+      { stop: "Horamavu Signal/Banaswadi Fly Over", time: "7:37 AM" },
+      { stop: "Babusapalya", time: "7:39 AM" },
+      { stop: "Hennur Cross", time: "7:42 AM" },
+      { stop: "BMSIT&M", time: "8:20 AM" }
+    ]
+  },
+  {
+    id: "12",
+    routeNo: "Route 12",
+    coordinator: "Mrs. Jayashree",
+    phone: "8197126498",
+    title: "Route 12 — Kalyan Nagar to BMSIT&M (via Nagawara, Thanisandra, Bhartiya City, Kogilu)",
+    stops: [
+      { stop: "Kalyan Nagar", time: "7:18 AM" },
+      { stop: "Nagawara Signal", time: "7:26 AM" },
+      { stop: "Elements Mall", time: "7:30 AM" },
+      { stop: "Ashwath Nagar", time: "7:33 AM" },
+      { stop: "Thanisandra (Book Factory)", time: "7:35 AM" },
+      { stop: "Hegde Nagar", time: "7:38 AM" },
+      { stop: "Shoba City", time: "7:40 AM" },
+      { stop: "Bhartiya City", time: "7:44 AM" },
+      { stop: "KNSIT", time: "7:46 AM" },
+      { stop: "Bellahalli Cross", time: "7:48 AM" },
+      { stop: "Brick Factory Layout", time: "7:50 AM" },
+      { stop: "Srinivasaspura", time: "7:53 AM" },
+      { stop: "Kogilu", time: "7:56 AM" },
+      { stop: "Sapthagiri Layout", time: "7:57 AM" },
+      { stop: "Maruthi Nagar", time: "7:58 AM" },
+      { stop: "Santhe Circle (Yelahanka)", time: "8:03 AM" },
+      { stop: "BMSIT&M", time: "8:20 AM" }
+    ]
+  }
 ];
 
 export default function App() {
@@ -61,6 +338,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  // Derived selected route object
+  const selectedRouteObj = BUS_ROUTES.find(r => r.title === route || r.routeNo === route);
 
   // Fetch registered list
   const fetchRegistrations = async () => {
@@ -162,7 +442,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-canvas text-ink py-12 px-4 md:px-8">
       <div className="max-w-[850px] mx-auto space-y-8" id="main-container">
-        
+
         {/* Simple Page Header */}
         <header className="pb-6 border-b border-hairline" id="app-header">
           <h1 className="text-2xl md:text-3xl font-normal tracking-tight text-ink">
@@ -174,7 +454,7 @@ export default function App() {
         </header>
 
         {/* Success Pop-up Modal */}
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           {submitSuccess && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden" id="success-modal-overlay">
               {/* Backdrop with transition */}
@@ -182,24 +462,25 @@ export default function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
                 className="fixed inset-0 bg-black/60 backdrop-blur-xs"
                 onClick={() => setSubmitSuccess(false)}
               />
-              
+
               {/* Animated Modal Container */}
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                initial={{ opacity: 0, scale: 0.95, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                transition={{ type: "spring", duration: 0.4 }}
+                exit={{ opacity: 0, scale: 0.96, y: 4 }}
+                transition={{ type: "spring", duration: 0.3, bounce: 0 }}
                 className="bg-white rounded-2xl border border-hairline shadow-2xl p-6 md:p-8 max-w-md w-full relative z-10 text-center space-y-6"
                 id="success-modal-content"
               >
                 {/* Visual Icon */}
                 <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                  <CheckCircle className="w-9 h-9" />
+                  <CheckCircle className="w-8 h-8" />
                 </div>
-                
+
                 {/* Text Content */}
                 <div className="space-y-2">
                   <h3 className="text-xl font-semibold text-ink tracking-tight">
@@ -210,18 +491,18 @@ export default function App() {
                   </p>
                 </div>
 
-                {/* Highly polished rephrased instructions card */}
+                {/* Concentric card: rounded-2xl parent with 16px padding -> rounded-xl child */}
                 <div className="p-4 bg-surface-soft border border-hairline rounded-xl text-center">
                   <p className="text-sm font-medium text-ink leading-relaxed">
                     We will contact you about the further steps via email shortly.
                   </p>
                 </div>
 
-                {/* Done action button */}
+                {/* Done action button with tactile press feedback */}
                 <button
                   type="button"
                   onClick={() => setSubmitSuccess(false)}
-                  className="w-full py-3 px-4 bg-primary hover:bg-primary/90 text-white font-medium rounded-lg text-sm transition-colors cursor-pointer shadow-sm focus:outline-none"
+                  className="w-full py-3 px-4 bg-primary hover:bg-primary-active text-white font-medium rounded-lg text-sm transition-transform duration-100 active:scale-[0.96] cursor-pointer shadow-xs focus:outline-none min-h-[44px]"
                   id="success-modal-close-btn"
                 >
                   Great, thank you!
@@ -231,22 +512,23 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Simple One-Page Registration Form */}
-        <section className="bg-white rounded-xl border border-hairline shadow-sm p-6 md:p-8 relative" id="registration-form-card">
-          
+        {/* Simple One-Page Registration Form Card (rounded-2xl) */}
+        <section className="bg-white rounded-2xl border border-hairline shadow-xs p-6 md:p-8 relative" id="registration-form-card">
+
           <div className="mb-6">
             <h2 className="text-lg font-medium text-ink">Student Registration Form</h2>
             <p className="text-xs text-body">Provide your contact details and select one of the 12 active campus bus routes.</p>
           </div>
 
           {/* Validation Alert */}
-          <AnimatePresence>
+          <AnimatePresence initial={false}>
             {formError && (
-              <motion.div 
-                initial={{ opacity: 0, y: -10 }}
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="mb-6 p-4 bg-white border border-semantic-down rounded-md flex items-start gap-3 text-sm text-semantic-down"
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+                className="mb-6 p-4 bg-white border border-semantic-down/40 rounded-xl flex items-start gap-3 text-sm text-semantic-down shadow-xs"
                 id="error-banner"
               >
                 <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-semantic-down" />
@@ -260,14 +542,14 @@ export default function App() {
 
           <form onSubmit={handleSubmit} className="space-y-6" id="student-entry-form">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              
+
               {/* Student Name */}
               <div className="space-y-1.5">
                 <label htmlFor="student-name" className="text-xs font-bold text-ink uppercase tracking-wider block">
                   Student Name
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <User className="w-4 h-4" />
                   </div>
                   <input
@@ -276,7 +558,7 @@ export default function App() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Enter student full name"
-                    className="w-full bg-white text-ink rounded-md pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-all duration-100"
+                    className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 min-h-[44px]"
                   />
                 </div>
               </div>
@@ -287,7 +569,7 @@ export default function App() {
                   USN No
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <Hash className="w-4 h-4" />
                   </div>
                   <input
@@ -295,8 +577,8 @@ export default function App() {
                     type="text"
                     value={usn}
                     onChange={(e) => setUsn(e.target.value)}
-                    placeholder="Enter USN Number (e.g. 1RV21CS001)"
-                    className="w-full bg-white text-ink rounded-md pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-all duration-100 uppercase"
+                    placeholder="Enter USN Number (e.g. 1BY26CS001)"
+                    className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 uppercase tabular-nums min-h-[44px]"
                   />
                 </div>
               </div>
@@ -307,7 +589,7 @@ export default function App() {
                   Student Phone No
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <Phone className="w-4 h-4" />
                   </div>
                   <input
@@ -316,7 +598,7 @@ export default function App() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="Enter contact number"
-                    className="w-full bg-white text-ink rounded-md pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-all duration-100"
+                    className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 tabular-nums min-h-[44px]"
                   />
                 </div>
               </div>
@@ -327,7 +609,7 @@ export default function App() {
                   Std Mail
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <Mail className="w-4 h-4" />
                   </div>
                   <input
@@ -336,9 +618,51 @@ export default function App() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter student email address"
-                    className="w-full bg-white text-ink rounded-md pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-all duration-100"
+                    className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 min-h-[44px]"
                   />
                 </div>
+              </div>
+
+              {/* Route Dropdown Menu */}
+              <div className="space-y-1.5 md:col-span-2">
+                <label htmlFor="student-route" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                  Route No
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
+                    <Navigation className="w-4 h-4" />
+                  </div>
+                  <select
+                    id="student-route"
+                    value={route}
+                    onChange={(e) => {
+                      setRoute(e.target.value);
+                      setBoardingPoint("");
+                    }}
+                    className="w-full bg-white text-ink rounded-lg pl-10 pr-10 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]"
+                  >
+                    <option value="" disabled>-- Select a route from the BMSIT&M route schedule --</option>
+                    {BUS_ROUTES.map((r) => (
+                      <option key={r.id} value={r.title}>
+                        {r.title}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-ink">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </div>
+                {selectedRouteObj && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="mt-2 p-3 bg-surface-soft rounded-xl border border-hairline flex flex-col sm:flex-row sm:items-center justify-between text-xs text-body gap-1.5"
+                  >
+                    <span><strong>Coordinator:</strong> {selectedRouteObj.coordinator}</span>
+                    <span className="tabular-nums"><strong>Contact:</strong> {selectedRouteObj.phone}</span>
+                  </motion.div>
+                )}
               </div>
 
               {/* Boarding Point */}
@@ -347,45 +671,38 @@ export default function App() {
                   Boarding Point
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <MapPin className="w-4 h-4" />
                   </div>
-                  <input
-                    id="student-boarding"
-                    type="text"
-                    value={boardingPoint}
-                    onChange={(e) => setBoardingPoint(e.target.value)}
-                    placeholder="Specify physical boarding point or landmark"
-                    className="w-full bg-white text-ink rounded-md pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-all duration-100"
-                  />
-                </div>
-              </div>
-
-              {/* Route Dropdown Menu (12 Routes available) */}
-              <div className="space-y-1.5 md:col-span-2">
-                <label htmlFor="student-route" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                  Route No
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted">
-                    <Navigation className="w-4 h-4" />
-                  </div>
-                  <select
-                    id="student-route"
-                    value={route}
-                    onChange={(e) => setRoute(e.target.value)}
-                    className="w-full bg-white text-ink rounded-md pl-10 pr-10 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none appearance-none cursor-pointer transition-all duration-100"
-                  >
-                    <option value="" disabled>-- Click here to select from the 12 available routes --</option>
-                    {BUS_ROUTES.map((routeOption, idx) => (
-                      <option key={idx} value={routeOption}>
-                        {routeOption}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-ink">
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
+                  {selectedRouteObj ? (
+                    <select
+                      id="student-boarding"
+                      value={boardingPoint}
+                      onChange={(e) => setBoardingPoint(e.target.value)}
+                      className="w-full bg-white text-ink rounded-lg pl-10 pr-10 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]"
+                    >
+                      <option value="">-- Select your pickup stop --</option>
+                      {selectedRouteObj.stops.map((stopItem, idx) => (
+                        <option key={idx} value={`${stopItem.stop} (${stopItem.time})`}>
+                          {stopItem.stop} — Pickup: {stopItem.time}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      id="student-boarding"
+                      type="text"
+                      value={boardingPoint}
+                      onChange={(e) => setBoardingPoint(e.target.value)}
+                      placeholder="Select a route above to choose your pickup point or type here"
+                      className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 min-h-[44px]"
+                    />
+                  )}
+                  {selectedRouteObj && (
+                    <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-ink">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -395,7 +712,7 @@ export default function App() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full sm:w-auto bg-primary hover:bg-primary-active text-white rounded-pill px-6 py-2.5 text-sm font-semibold transition-all active:scale-98 disabled:opacity-50 cursor-pointer text-center"
+                className="w-full sm:w-auto bg-primary hover:bg-primary-active text-white rounded-pill px-6 py-2.5 text-sm font-semibold transition-transform duration-100 active:scale-[0.96] disabled:opacity-50 cursor-pointer text-center min-h-[44px] min-w-[140px] flex items-center justify-center shadow-xs"
                 id="submit-button"
               >
                 {isSubmitting ? "Submitting..." : "Submit Registration"}
@@ -405,17 +722,8 @@ export default function App() {
           </form>
         </section>
 
-        {/* Humble system footer */}
-        <footer className="text-center text-[11px] text-muted pt-6 pb-12 border-t border-hairline flex flex-col sm:flex-row justify-between gap-2" id="app-footer">
-          <div>
-            &copy; 2026 Student Transport Services. All rights reserved.
-          </div>
-          <div className="flex justify-center gap-4 font-semibold text-ink">
-            <a href="#" className="hover:underline">System Status</a>
-            <span>•</span>
-            <a href="#" className="hover:underline">Help & Support</a>
-          </div>
-        </footer>
+        {/* Spacing after section */}
+        <div className="pb-12" />
 
       </div>
     </div>
