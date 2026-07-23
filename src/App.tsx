@@ -19,10 +19,12 @@ import {
 import { db } from "./firebase";
 import { collection, addDoc, getDocs, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
 
-interface StudentRegistration {
+interface RegistrationRecord {
   id: string;
+  userType: "student" | "staff";
+  staffCategory?: "teaching" | "non-teaching";
   name: string;
-  usn: string;
+  identifier: string; // USN for student, ID Number for staff
   phone: string;
   email: string;
   boardingPoint: string;
@@ -322,21 +324,37 @@ const BUS_ROUTES: BusRoute[] = [
   }
 ];
 
+interface FieldErrors {
+  userType?: string;
+  staffCategory?: string;
+  name?: string;
+  identifier?: string;
+  phone?: string;
+  email?: string;
+  route?: string;
+  boardingPoint?: string;
+}
+
 export default function App() {
+  // Category / Role State
+  const [userType, setUserType] = useState<"student" | "staff">("student");
+  const [staffCategory, setStaffCategory] = useState<"teaching" | "non-teaching">("teaching");
+
   // Form fields state
   const [name, setName] = useState("");
-  const [usn, setUsn] = useState("");
+  const [identifier, setIdentifier] = useState(""); // USN or ID Number
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [boardingPoint, setBoardingPoint] = useState("");
   const [route, setRoute] = useState("");
 
   // UI state
-  const [registrations, setRegistrations] = useState<StudentRegistration[]>([]);
+  const [registrations, setRegistrations] = useState<RegistrationRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [formErrorSummary, setFormErrorSummary] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
   // Derived selected route object
@@ -351,8 +369,10 @@ export default function App() {
         const data = doc.data();
         return {
           id: doc.id,
-          name: data.studentName || data.name || "",
-          usn: data.usn || "",
+          userType: data.userType || "student",
+          staffCategory: data.staffCategory,
+          name: data.studentName || data.name || data.staffName || "",
+          identifier: data.usn || data.idNumber || data.identifier || "",
           phone: data.phone || "",
           email: data.email || "",
           boardingPoint: data.boardingPoint || "",
@@ -372,47 +392,132 @@ export default function App() {
     fetchRegistrations();
   }, []);
 
+  // Comprehensive Field Validation Function
+  const validateForm = (): boolean => {
+    const errors: FieldErrors = {};
+    const errorList: string[] = [];
+
+    // Full Name
+    if (!name.trim()) {
+      errors.name = userType === "student" ? "Student Name is required." : "Staff Name is required.";
+      errorList.push(errors.name);
+    } else if (name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters long.";
+      errorList.push(errors.name);
+    }
+
+    // USN / Staff ID Number Validation
+    if (userType === "student") {
+      const cleanUsn = identifier.trim().toUpperCase();
+      if (!cleanUsn) {
+        errors.identifier = "USN Number is required.";
+        errorList.push("USN Number is missing.");
+      } else if (cleanUsn.length !== 12) {
+        errors.identifier = `USN must be exactly 12 characters (currently ${cleanUsn.length} characters). E.g. 1BY26CS00112`;
+        errorList.push(`USN is incorrect length (${cleanUsn.length}/12 chars).`);
+      }
+    } else {
+      const cleanId = identifier.trim();
+      if (!cleanId) {
+        errors.identifier = "Staff ID Number is required.";
+        errorList.push("Staff ID Number is missing.");
+      } else if (cleanId.length < 3) {
+        errors.identifier = "Staff ID Number must be at least 3 characters.";
+        errorList.push("Staff ID Number is too short.");
+      }
+    }
+
+    // Phone Number Validation (At least 10 digits)
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (!phone.trim()) {
+      errors.phone = "Phone Number is required.";
+      errorList.push("Phone Number is missing.");
+    } else if (phoneDigits.length < 10) {
+      errors.phone = `Phone Number must contain at least 10 digits (found ${phoneDigits.length}).`;
+      errorList.push(`Phone number has only ${phoneDigits.length} digits (min 10).`);
+    }
+
+    // Email Address Validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      errors.email = "Email Address is required.";
+      errorList.push("Email Address is missing.");
+    } else if (!emailRegex.test(email.trim())) {
+      errors.email = "Please enter a valid email address (e.g. name@domain.com).";
+      errorList.push("Email format is invalid.");
+    }
+
+    // Route Selection
+    if (!route) {
+      errors.route = "Please select a transport route.";
+      errorList.push("Route selection is required.");
+    }
+
+    // Boarding Point
+    if (!boardingPoint.trim()) {
+      errors.boardingPoint = "Please select or specify your boarding point.";
+      errorList.push("Boarding Point is missing.");
+    }
+
+    setFieldErrors(errors);
+
+    if (errorList.length > 0) {
+      setFormErrorSummary(`Please fix the following: ${errorList.join(" | ")}`);
+      return false;
+    }
+
+    setFormErrorSummary(null);
+    return true;
+  };
+
   // Form submission handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError(null);
     setSubmitSuccess(false);
 
-    // Form fields validation
-    if (!name.trim()) return setFormError("Student Name is required.");
-    if (!usn.trim()) return setFormError("USN Number is required.");
-    if (!phone.trim()) return setFormError("Student Phone Number is required.");
-    if (!email.trim()) return setFormError("Student Email is required.");
-    if (!boardingPoint.trim()) return setFormError("Boarding Point is required.");
-    if (!route) return setFormError("Please select a transport route.");
+    if (!validateForm()) {
+      return;
+    }
 
     setIsSubmitting(true);
 
     try {
-      await addDoc(collection(db, "registrations"), {
-        studentName: name.trim(),
-        usn: usn.trim().toUpperCase(),
+      const payload: any = {
+        userType,
         phone: phone.trim(),
         email: email.trim(),
         boardingPoint: boardingPoint.trim(),
         routeNo: route,
         status: "Pending",
         submittedAt: serverTimestamp()
-      });
+      };
+
+      if (userType === "student") {
+        payload.studentName = name.trim();
+        payload.usn = identifier.trim().toUpperCase();
+      } else {
+        payload.staffName = name.trim();
+        payload.idNumber = identifier.trim();
+        payload.staffCategory = staffCategory;
+      }
+
+      await addDoc(collection(db, "registrations"), payload);
 
       setSubmitSuccess(true);
       // Reset form fields
       setName("");
-      setUsn("");
+      setIdentifier("");
       setPhone("");
       setEmail("");
       setBoardingPoint("");
       setRoute("");
+      setFieldErrors({});
+      setFormErrorSummary(null);
       // Refresh records list
       fetchRegistrations();
     } catch (error) {
       console.error("Submission error details:", error);
-      setFormError(error instanceof Error ? `Failed to submit: ${error.message}` : "Failed to submit registration. Please check your connection.");
+      setFormErrorSummary(error instanceof Error ? `Failed to submit: ${error.message}` : "Failed to submit registration. Please check your connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -428,17 +533,6 @@ export default function App() {
     }
   };
 
-  // Filter registrations based on search query
-  const filteredRegistrations = registrations.filter(reg => {
-    const s = searchQuery.toLowerCase();
-    return (
-      reg.name.toLowerCase().includes(s) ||
-      reg.usn.toLowerCase().includes(s) ||
-      reg.boardingPoint.toLowerCase().includes(s) ||
-      reg.route.toLowerCase().includes(s)
-    );
-  });
-
   return (
     <div className="min-h-screen bg-canvas text-ink py-12 px-4 md:px-8">
       <div className="max-w-[850px] mx-auto space-y-8" id="main-container">
@@ -446,10 +540,10 @@ export default function App() {
         {/* Simple Page Header */}
         <header className="pb-6 border-b border-hairline" id="app-header">
           <h1 className="text-2xl md:text-3xl font-normal tracking-tight text-ink">
-            Wayline
+            Wayline Registration
           </h1>
           <p className="text-xs text-body mt-1">
-            Please fill in your details below to submit a bus route registration request.
+            Submit bus route registration for BMSIT&M Students and Staff members.
           </p>
         </header>
 
@@ -457,7 +551,6 @@ export default function App() {
         <AnimatePresence initial={false}>
           {submitSuccess && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden" id="success-modal-overlay">
-              {/* Backdrop with transition */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -467,7 +560,6 @@ export default function App() {
                 onClick={() => setSubmitSuccess(false)}
               />
 
-              {/* Animated Modal Container */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -476,29 +568,25 @@ export default function App() {
                 className="bg-white rounded-2xl border border-hairline shadow-2xl p-6 md:p-8 max-w-md w-full relative z-10 text-center space-y-6"
                 id="success-modal-content"
               >
-                {/* Visual Icon */}
                 <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                   <CheckCircle className="w-8 h-8" />
                 </div>
 
-                {/* Text Content */}
                 <div className="space-y-2">
                   <h3 className="text-xl font-semibold text-ink tracking-tight">
                     Registration Confirmed!
                   </h3>
                   <p className="text-xs text-muted">
-                    Your route registration details have been securely saved to our transport index.
+                    Your {userType === "student" ? "student" : `staff (${staffCategory})`} route registration details have been saved.
                   </p>
                 </div>
 
-                {/* Concentric card: rounded-2xl parent with 16px padding -> rounded-xl child */}
                 <div className="p-4 bg-surface-soft border border-hairline rounded-xl text-center">
                   <p className="text-sm font-medium text-ink leading-relaxed">
                     We will contact you about the further steps via email shortly.
                   </p>
                 </div>
 
-                {/* Done action button with tactile press feedback */}
                 <button
                   type="button"
                   onClick={() => setSubmitSuccess(false)}
@@ -512,134 +600,269 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Simple One-Page Registration Form Card (rounded-2xl) */}
+        {/* Dynamic Registration Form Card */}
         <section className="bg-white rounded-2xl border border-hairline shadow-xs p-6 md:p-8 relative" id="registration-form-card">
 
-          <div className="mb-6">
-            <h2 className="text-lg font-medium text-ink">Student Registration Form</h2>
-            <p className="text-xs text-body">Provide your contact details and select one of the 12 active campus bus routes.</p>
+          <div className="mb-6 space-y-4">
+            <div>
+              <h2 className="text-lg font-medium text-ink">
+                {userType === "student" ? "Student Registration Form" : "Staff Registration Form"}
+              </h2>
+              <p className="text-xs text-body mt-0.5">
+                Select your category and fill out your details to request campus bus route access.
+              </p>
+            </div>
+
+            {/* Role Selection Switcher (Student vs Staff - Segmented Toggle, NOT a dropdown) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-ink uppercase tracking-wider block">
+                Registration Category
+              </label>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-surface-soft border border-hairline rounded-xl" id="role-selector">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserType("student");
+                    setFieldErrors({});
+                    setFormErrorSummary(null);
+                  }}
+                  className={`py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer ${
+                    userType === "student"
+                      ? "bg-white text-primary shadow-xs border border-hairline"
+                      : "text-body hover:text-ink"
+                  }`}
+                >
+                  <User className="w-4 h-4" />
+                  <span>Student</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserType("staff");
+                    setFieldErrors({});
+                    setFormErrorSummary(null);
+                  }}
+                  className={`py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer ${
+                    userType === "staff"
+                      ? "bg-white text-primary shadow-xs border border-hairline"
+                      : "text-body hover:text-ink"
+                  }`}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Staff</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Staff Category Options (Teaching vs Non-Teaching) */}
+            <AnimatePresence initial={false}>
+              {userType === "staff" && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-1.5 pt-1 overflow-hidden"
+                  id="staff-category-selector"
+                >
+                  <label className="text-xs font-bold text-ink uppercase tracking-wider block">
+                    Staff Designation Category
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-surface-strong/60 border border-hairline rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setStaffCategory("teaching")}
+                      className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        staffCategory === "teaching"
+                          ? "bg-white text-ink shadow-xs border border-hairline"
+                          : "text-body hover:text-ink"
+                      }`}
+                    >
+                      Teaching Staff
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffCategory("non-teaching")}
+                      className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        staffCategory === "non-teaching"
+                          ? "bg-white text-ink shadow-xs border border-hairline"
+                          : "text-body hover:text-ink"
+                      }`}
+                    >
+                      Non-Teaching Staff
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          {/* Validation Alert */}
+          {/* Validation Alert Summary */}
           <AnimatePresence initial={false}>
-            {formError && (
+            {formErrorSummary && (
               <motion.div
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.2 }}
-                className="mb-6 p-4 bg-white border border-semantic-down/40 rounded-xl flex items-start gap-3 text-sm text-semantic-down shadow-xs"
+                className="mb-6 p-4 bg-semantic-down/5 border border-semantic-down/40 rounded-xl flex items-start gap-3 text-sm text-semantic-down shadow-xs"
                 id="error-banner"
               >
                 <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-semantic-down" />
                 <div>
-                  <span className="font-bold">Missing Information</span>
-                  <p className="text-xs text-semantic-down/90 mt-0.5">{formError}</p>
+                  <span className="font-bold block">Action Required</span>
+                  <p className="text-xs text-semantic-down/90 mt-0.5 leading-relaxed">{formErrorSummary}</p>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <form onSubmit={handleSubmit} className="space-y-6" id="student-entry-form">
+          <form onSubmit={handleSubmit} className="space-y-6" id="registration-entry-form" noValidate>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-              {/* Student Name */}
+              {/* Full Name Field */}
               <div className="space-y-1.5">
-                <label htmlFor="student-name" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                  Student Name
+                <label htmlFor="user-name" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                  {userType === "student" ? "Student Name" : "Staff Name"}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <User className="w-4 h-4" />
                   </div>
                   <input
-                    id="student-name"
+                    id="user-name"
                     type="text"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Enter student full name"
-                    className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 min-h-[44px]"
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: undefined }));
+                    }}
+                    placeholder={userType === "student" ? "Enter student full name" : "Enter staff full name"}
+                    className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
+                      fieldErrors.name ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                    } focus:outline-none transition-colors duration-100 min-h-[44px]`}
                   />
                 </div>
+                {fieldErrors.name && (
+                  <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.name}
+                  </p>
+                )}
               </div>
 
-              {/* USN Number */}
+              {/* USN Number for Student vs ID Number for Staff */}
               <div className="space-y-1.5">
-                <label htmlFor="student-usn" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                  USN No
+                <label htmlFor="user-identifier" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                  {userType === "student" ? "USN No (12 Characters)" : "Staff ID Number"}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <Hash className="w-4 h-4" />
                   </div>
                   <input
-                    id="student-usn"
+                    id="user-identifier"
                     type="text"
-                    value={usn}
-                    onChange={(e) => setUsn(e.target.value)}
-                    placeholder="Enter USN Number (e.g. 1BY26CS001)"
-                    className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 uppercase tabular-nums min-h-[44px]"
+                    value={identifier}
+                    onChange={(e) => {
+                      setIdentifier(e.target.value);
+                      if (fieldErrors.identifier) setFieldErrors(prev => ({ ...prev, identifier: undefined }));
+                    }}
+                    placeholder={userType === "student" ? "e.g. 1BY26CS00112" : "Enter Staff ID Number"}
+                    className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
+                      userType === "student" ? "uppercase tabular-nums" : ""
+                    } ${
+                      fieldErrors.identifier ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                    } focus:outline-none transition-colors duration-100 min-h-[44px]`}
                   />
                 </div>
+                {fieldErrors.identifier && (
+                  <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.identifier}
+                  </p>
+                )}
               </div>
 
-              {/* Student Phone */}
+              {/* Phone Number Field */}
               <div className="space-y-1.5">
-                <label htmlFor="student-phone" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                  Student Phone No
+                <label htmlFor="user-phone" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                  Phone Number (Min 10 Digits)
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <Phone className="w-4 h-4" />
                   </div>
                   <input
-                    id="student-phone"
+                    id="user-phone"
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Enter contact number"
-                    className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 tabular-nums min-h-[44px]"
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      if (fieldErrors.phone) setFieldErrors(prev => ({ ...prev, phone: undefined }));
+                    }}
+                    placeholder="Enter 10-digit mobile number"
+                    className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
+                      fieldErrors.phone ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                    } focus:outline-none transition-colors duration-100 tabular-nums min-h-[44px]`}
                   />
                 </div>
+                {fieldErrors.phone && (
+                  <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.phone}
+                  </p>
+                )}
               </div>
 
-              {/* Student Mail */}
+              {/* Email Field */}
               <div className="space-y-1.5">
-                <label htmlFor="student-email" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                  Std Mail
+                <label htmlFor="user-email" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                  Email Address
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <Mail className="w-4 h-4" />
                   </div>
                   <input
-                    id="student-email"
+                    id="user-email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter student email address"
-                    className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 min-h-[44px]"
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined }));
+                    }}
+                    placeholder="Enter email address (e.g. user@bmsit.in)"
+                    className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
+                      fieldErrors.email ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                    } focus:outline-none transition-colors duration-100 min-h-[44px]`}
                   />
                 </div>
+                {fieldErrors.email && (
+                  <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.email}
+                  </p>
+                )}
               </div>
 
               {/* Route Dropdown Menu */}
               <div className="space-y-1.5 md:col-span-2">
-                <label htmlFor="student-route" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                  Route No
+                <label htmlFor="user-route" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                  Transport Route
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
                     <Navigation className="w-4 h-4" />
                   </div>
                   <select
-                    id="student-route"
+                    id="user-route"
                     value={route}
                     onChange={(e) => {
                       setRoute(e.target.value);
                       setBoardingPoint("");
+                      if (fieldErrors.route) setFieldErrors(prev => ({ ...prev, route: undefined }));
                     }}
-                    className="w-full bg-white text-ink rounded-lg pl-10 pr-10 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]"
+                    className={`w-full bg-white text-ink rounded-lg pl-10 pr-10 py-2.5 text-sm border ${
+                      fieldErrors.route ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                    } focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]`}
                   >
                     <option value="" disabled>-- Select a route from the BMSIT&M route schedule --</option>
                     {BUS_ROUTES.map((r) => (
@@ -652,6 +875,11 @@ export default function App() {
                     <ChevronDown className="w-4 h-4" />
                   </div>
                 </div>
+                {fieldErrors.route && (
+                  <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.route}
+                  </p>
+                )}
                 {selectedRouteObj && (
                   <motion.div 
                     initial={{ opacity: 0, y: -4 }}
@@ -667,7 +895,7 @@ export default function App() {
 
               {/* Boarding Point */}
               <div className="space-y-1.5 md:col-span-2">
-                <label htmlFor="student-boarding" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                <label htmlFor="user-boarding" className="text-xs font-bold text-ink uppercase tracking-wider block">
                   Boarding Point
                 </label>
                 <div className="relative">
@@ -676,10 +904,15 @@ export default function App() {
                   </div>
                   {selectedRouteObj ? (
                     <select
-                      id="student-boarding"
+                      id="user-boarding"
                       value={boardingPoint}
-                      onChange={(e) => setBoardingPoint(e.target.value)}
-                      className="w-full bg-white text-ink rounded-lg pl-10 pr-10 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]"
+                      onChange={(e) => {
+                        setBoardingPoint(e.target.value);
+                        if (fieldErrors.boardingPoint) setFieldErrors(prev => ({ ...prev, boardingPoint: undefined }));
+                      }}
+                      className={`w-full bg-white text-ink rounded-lg pl-10 pr-10 py-2.5 text-sm border ${
+                        fieldErrors.boardingPoint ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                      } focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]`}
                     >
                       <option value="">-- Select your pickup stop --</option>
                       {selectedRouteObj.stops.map((stopItem, idx) => (
@@ -690,12 +923,17 @@ export default function App() {
                     </select>
                   ) : (
                     <input
-                      id="student-boarding"
+                      id="user-boarding"
                       type="text"
                       value={boardingPoint}
-                      onChange={(e) => setBoardingPoint(e.target.value)}
+                      onChange={(e) => {
+                        setBoardingPoint(e.target.value);
+                        if (fieldErrors.boardingPoint) setFieldErrors(prev => ({ ...prev, boardingPoint: undefined }));
+                      }}
                       placeholder="Select a route above to choose your pickup point or type here"
-                      className="w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors duration-100 min-h-[44px]"
+                      className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
+                        fieldErrors.boardingPoint ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                      } focus:outline-none transition-colors duration-100 min-h-[44px]`}
                     />
                   )}
                   {selectedRouteObj && (
@@ -704,6 +942,11 @@ export default function App() {
                     </div>
                   )}
                 </div>
+                {fieldErrors.boardingPoint && (
+                  <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                    <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.boardingPoint}
+                  </p>
+                )}
               </div>
 
             </div>
@@ -712,7 +955,7 @@ export default function App() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full sm:w-auto bg-primary hover:bg-primary-active text-white rounded-pill px-6 py-2.5 text-sm font-semibold transition-transform duration-100 active:scale-[0.96] disabled:opacity-50 cursor-pointer text-center min-h-[44px] min-w-[140px] flex items-center justify-center shadow-xs"
+                className="w-full sm:w-auto bg-primary hover:bg-primary-active text-white rounded-pill px-6 py-2.5 text-sm font-semibold transition-[transform,opacity,background-color] duration-150 active:scale-[0.96] disabled:opacity-50 cursor-pointer text-center min-h-[44px] min-w-[140px] flex items-center justify-center shadow-xs"
                 id="submit-button"
               >
                 {isSubmitting ? "Submitting..." : "Submit Registration"}
@@ -729,3 +972,4 @@ export default function App() {
     </div>
   );
 }
+
