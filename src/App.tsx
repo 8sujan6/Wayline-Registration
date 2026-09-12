@@ -20,7 +20,16 @@ import {
   ArrowRight,
   RefreshCw,
   Check,
-  Info
+  Info,
+  GraduationCap,
+  Calendar,
+  MessageSquare,
+  Home,
+  HeartPulse,
+  Users,
+  PhoneCall,
+  QrCode,
+  FileText
 } from "lucide-react";
 import { db } from "./firebase";
 import { collection, addDoc, getDocs, serverTimestamp } from "firebase/firestore";
@@ -32,7 +41,15 @@ interface RegistrationRecord {
   name: string;
   identifier: string; // USN for student, ID Number for staff
   phone: string;
+  whatsappNumber?: string;
   email: string;
+  semester?: string;
+  batch?: string;
+  presentAddress?: string;
+  guardianPhone?: string;
+  guardianRelation?: "Father" | "Mother" | "Guardian";
+  emergencyContact?: string;
+  bloodGroup?: string;
   boardingPoint: string;
   route: string;
   busNo: string;
@@ -366,7 +383,14 @@ interface FieldErrors {
   name?: string;
   identifier?: string;
   phone?: string;
+  whatsappNumber?: string;
   email?: string;
+  semester?: string;
+  batch?: string;
+  presentAddress?: string;
+  guardianPhone?: string;
+  emergencyContact?: string;
+  bloodGroup?: string;
   route?: string;
   boardingPoint?: string;
   transactionId?: string;
@@ -383,14 +407,23 @@ export default function App() {
   // Form fields state
   const [name, setName] = useState("");
   const [identifier, setIdentifier] = useState(""); // USN or ID Number
+  const [semester, setSemester] = useState("");
+  const [batch, setBatch] = useState("");
   const [phone, setPhone] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [isWhatsappSame, setIsWhatsappSame] = useState(true);
   const [email, setEmail] = useState("");
+  const [presentAddress, setPresentAddress] = useState("");
+  const [guardianPhone, setGuardianPhone] = useState("");
+  const [guardianRelation, setGuardianRelation] = useState<"Father" | "Mother" | "Guardian">("Father");
+  const [emergencyContact, setEmergencyContact] = useState("");
+  const [bloodGroup, setBloodGroup] = useState("");
   const [boardingPoint, setBoardingPoint] = useState("");
   const [route, setRoute] = useState("");
 
   // Payment fields
   const [transactionId, setTransactionId] = useState("");
-  const [paymentMode, setPaymentMode] = useState("BMSIT Online Fee Portal");
+  const [paymentMode, setPaymentMode] = useState("UPI");
   const [hasVisitedPortal, setHasVisitedPortal] = useState(false);
 
   // UI & Registration State
@@ -439,7 +472,15 @@ export default function App() {
           name: data.studentName || data.name || data.staffName || "",
           identifier: data.usn || data.idNumber || data.identifier || "",
           phone: data.phone || "",
+          whatsappNumber: data.whatsappNumber || data.whatsapp || data.phone || "",
           email: data.email || "",
+          semester: data.semester || "",
+          batch: data.batch || "",
+          presentAddress: data.presentAddress || data.address || "",
+          guardianPhone: data.guardianPhone || data.guardianContact || "",
+          guardianRelation: data.guardianRelation || "Father",
+          emergencyContact: data.emergencyContact || data.emergencyPhone || "",
+          bloodGroup: data.bloodGroup || "",
           boardingPoint: data.boardingPoint || "",
           route: data.routeNo || data.route || "",
           busNo: data.busNo || "",
@@ -484,8 +525,30 @@ export default function App() {
         errors.identifier = "USN Number is required.";
         errorList.push("USN Number is missing.");
       } else if (cleanUsn.length !== 12) {
-        errors.identifier = `USN must be exactly 12 characters (currently ${cleanUsn.length} characters). E.g. 1BY26CS00112`;
+        errors.identifier = `USN must be exactly 12 characters (currently ${cleanUsn.length} characters).`;
         errorList.push(`USN is incorrect length (${cleanUsn.length}/12 chars).`);
+      }
+
+      // Semester
+      if (!semester.trim()) {
+        errors.semester = "Please select your semester.";
+        errorList.push("Semester is missing.");
+      }
+
+      // Batch
+      if (!batch.trim()) {
+        errors.batch = "Please enter your batch.";
+        errorList.push("Batch is missing.");
+      }
+
+      // Guardian Mobile Number
+      const guardianDigits = guardianPhone.replace(/\D/g, "");
+      if (!guardianPhone.trim()) {
+        errors.guardianPhone = "Guardian mobile number is required.";
+        errorList.push("Guardian phone number is missing.");
+      } else if (guardianDigits.length < 10) {
+        errors.guardianPhone = `Guardian phone number must have at least 10 digits (found ${guardianDigits.length}).`;
+        errorList.push("Guardian phone number must be at least 10 digits.");
       }
     } else {
       const cleanId = identifier.trim();
@@ -498,7 +561,7 @@ export default function App() {
       }
     }
 
-    // Phone Number Validation (At least 10 digits)
+    // Student / User Phone Number Validation (At least 10 digits)
     const phoneDigits = phone.replace(/\D/g, "");
     if (!phone.trim()) {
       errors.phone = "Phone Number is required.";
@@ -508,14 +571,50 @@ export default function App() {
       errorList.push(`Phone number has only ${phoneDigits.length} digits (min 10).`);
     }
 
+    // Student WhatsApp Number
+    const effectiveWhatsapp = isWhatsappSame ? phone : whatsappNumber;
+    const waDigits = effectiveWhatsapp.replace(/\D/g, "");
+    if (!effectiveWhatsapp.trim()) {
+      errors.whatsappNumber = "WhatsApp Number is required.";
+      errorList.push("WhatsApp Number is missing.");
+    } else if (waDigits.length < 10) {
+      errors.whatsappNumber = `WhatsApp Number must contain at least 10 digits (found ${waDigits.length}).`;
+      errorList.push(`WhatsApp number has only ${waDigits.length} digits (min 10).`);
+    }
+
     // Email Address Validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim()) {
       errors.email = "Email Address is required.";
       errorList.push("Email Address is missing.");
     } else if (!emailRegex.test(email.trim())) {
-      errors.email = "Please enter a valid email address (e.g. user@bmsit.in).";
+      errors.email = "Please enter a valid email address.";
       errorList.push("Email format is invalid.");
+    }
+
+    // Present Address
+    if (!presentAddress.trim()) {
+      errors.presentAddress = "Present residential address is required.";
+      errorList.push("Present address is missing.");
+    } else if (presentAddress.trim().length < 5) {
+      errors.presentAddress = "Please provide complete present address.";
+      errorList.push("Present address is too short.");
+    }
+
+    // Blood Group
+    if (!bloodGroup.trim()) {
+      errors.bloodGroup = "Please select blood group.";
+      errorList.push("Blood group is missing.");
+    }
+
+    // Emergency Contact Number
+    const emergencyDigits = emergencyContact.replace(/\D/g, "");
+    if (!emergencyContact.trim()) {
+      errors.emergencyContact = "Emergency Contact Number is required.";
+      errorList.push("Emergency contact number is missing.");
+    } else if (emergencyDigits.length < 10) {
+      errors.emergencyContact = `Emergency Contact must have at least 10 digits (found ${emergencyDigits.length}).`;
+      errorList.push("Emergency contact number must be at least 10 digits.");
     }
 
     // Route Selection & Availability Check
@@ -566,10 +665,16 @@ export default function App() {
 
     try {
       const assignedBusNo = selectedRouteObj ? selectedRouteObj.busNo : "Assigned Bus";
+      const finalWhatsapp = isWhatsappSame ? phone.trim() : (whatsappNumber.trim() || phone.trim());
+
       const payload: any = {
         userType,
         phone: phone.trim(),
+        whatsappNumber: finalWhatsapp,
         email: email.trim(),
+        presentAddress: presentAddress.trim(),
+        bloodGroup: bloodGroup.trim(),
+        emergencyContact: emergencyContact.trim(),
         boardingPoint: boardingPoint.trim(),
         routeNo: route,
         busNo: assignedBusNo,
@@ -584,6 +689,10 @@ export default function App() {
       if (userType === "student") {
         payload.studentName = name.trim();
         payload.usn = identifier.trim().toUpperCase();
+        payload.semester = semester.trim();
+        payload.batch = batch.trim();
+        payload.guardianPhone = guardianPhone.trim();
+        payload.guardianRelation = guardianRelation;
       } else {
         payload.staffName = name.trim();
         payload.idNumber = identifier.trim();
@@ -599,7 +708,15 @@ export default function App() {
         name: name.trim(),
         identifier: userType === "student" ? identifier.trim().toUpperCase() : identifier.trim(),
         phone: phone.trim(),
+        whatsappNumber: finalWhatsapp,
         email: email.trim(),
+        semester: semester.trim(),
+        batch: batch.trim(),
+        presentAddress: presentAddress.trim(),
+        guardianPhone: guardianPhone.trim(),
+        guardianRelation: guardianRelation,
+        emergencyContact: emergencyContact.trim(),
+        bloodGroup: bloodGroup.trim(),
         boardingPoint: boardingPoint.trim(),
         route,
         busNo: assignedBusNo,
@@ -617,8 +734,16 @@ export default function App() {
       // Reset form fields
       setName("");
       setIdentifier("");
+      setSemester("");
+      setBatch("");
       setPhone("");
+      setWhatsappNumber("");
+      setIsWhatsappSame(true);
       setEmail("");
+      setPresentAddress("");
+      setGuardianPhone("");
+      setEmergencyContact("");
+      setBloodGroup("");
       setBoardingPoint("");
       setRoute("");
       setTransactionId("");
@@ -656,45 +781,15 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-canvas text-ink py-10 px-4 md:px-8 font-sans">
+    <div className="min-h-screen bg-canvas text-ink py-6 sm:py-10 px-3 sm:px-6 md:px-8 font-sans antialiased">
       <div className="max-w-[860px] mx-auto space-y-6" id="main-container">
 
-        {/* Top BMSIT Official Banner */}
-        <div className="bg-surface-soft border border-hairline rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold text-base flex-shrink-0">
-              BMS
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-ink">BMS Institute of Technology & Management</h3>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-primary/10 text-primary rounded-pill">
-                  Official Portal
-                </span>
-              </div>
-              <p className="text-xs text-body">
-                Autonomous Institution Affiliated to VTU, Belagavi • Yelahanka, Bengaluru
-              </p>
-            </div>
-          </div>
-          <a
-            href="https://bmsit.ac.in"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-primary bg-white border border-hairline hover:bg-surface-soft rounded-lg transition-colors shadow-2xs min-h-[38px]"
-            id="bmsit-official-link-header"
-          >
-            <span>Visit BMSIT Official Website</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        </div>
-
         {/* App Title & Tabs Header */}
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-hairline" id="app-header">
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-hairline" id="app-header">
           <div>
-            <h1 className="text-2xl md:text-3xl font-normal tracking-tight text-ink flex items-center gap-2.5">
-              <Bus className="w-7 h-7 text-primary" />
-              <span>Wayline Bus Registration</span>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-ink flex items-baseline">
+              <span>Wayline</span><span className="text-primary text-3xl font-black leading-none">.</span>
+              <span className="font-medium text-body text-xl md:text-2xl ml-2">Bus Registration Form</span>
             </h1>
             <p className="text-xs text-body mt-1">
               Select your route, verify live seat availability on dedicated buses, and initiate payment.
@@ -702,29 +797,33 @@ export default function App() {
           </div>
 
           {/* Navigation Pill Switcher */}
-          <div className="inline-flex p-1 bg-surface-soft border border-hairline rounded-xl self-start sm:self-auto">
+          <div className="inline-flex p-1 bg-surface-soft border border-hairline rounded-xl self-start sm:self-auto" role="tablist" aria-label="Registration Navigation">
             <button
               type="button"
+              role="tab"
+              aria-selected={activeTab === "register"}
               onClick={() => setActiveTab("register")}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer active:scale-[0.96] transition-transform duration-100 min-h-[38px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
                 activeTab === "register"
                   ? "bg-white text-primary shadow-xs border border-hairline"
                   : "text-body hover:text-ink"
               }`}
             >
-              <Bus className="w-3.5 h-3.5" />
+              <Bus className="w-3.5 h-3.5 flex-shrink-0" />
               <span>Register & Block Seat</span>
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={activeTab === "status"}
               onClick={() => setActiveTab("status")}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer active:scale-[0.96] transition-transform duration-100 min-h-[38px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
                 activeTab === "status"
                   ? "bg-white text-primary shadow-xs border border-hairline"
                   : "text-body hover:text-ink"
               }`}
             >
-              <Search className="w-3.5 h-3.5" />
+              <Search className="w-3.5 h-3.5 flex-shrink-0" />
               <span>Check Seat Status</span>
             </button>
           </div>
@@ -790,6 +889,18 @@ export default function App() {
                       <span className="text-muted block text-[11px]">Transaction / UTR ID:</span>
                       <span className="font-mono font-medium text-ink truncate block">{lastSubmitted.transactionId}</span>
                     </div>
+                    {lastSubmitted.semester && (
+                      <div>
+                        <span className="text-muted block text-[11px]">Semester & Batch:</span>
+                        <span className="font-medium text-ink truncate block">{lastSubmitted.semester} ({lastSubmitted.batch})</span>
+                      </div>
+                    )}
+                    {lastSubmitted.bloodGroup && (
+                      <div>
+                        <span className="text-muted block text-[11px]">Blood Group:</span>
+                        <span className="font-bold text-primary truncate block">{lastSubmitted.bloodGroup}</span>
+                      </div>
+                    )}
                     <div className="col-span-2">
                       <span className="text-muted block text-[11px]">Pickup Stop & Route:</span>
                       <span className="font-medium text-ink truncate block">{lastSubmitted.boardingPoint}</span>
@@ -801,11 +912,11 @@ export default function App() {
                 <div className="p-3.5 bg-blue-50/60 border border-blue-100 rounded-xl text-xs text-blue-900 leading-relaxed flex items-start gap-2.5">
                   <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                   <p>
-                    <strong>Next Step:</strong> Your seat is blocked so that no other student can take it. The transport administrator will verify your Transaction ID with BMSIT payment records and issue <strong>final approval</strong>.
+                    <strong>Next Step:</strong> Your seat is reserved. The transport administrator will verify your Transaction ID and issue final approval.
                   </p>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   <button
                     type="button"
                     onClick={() => {
@@ -814,14 +925,14 @@ export default function App() {
                       setStatusSearchQuery(lastSubmitted.identifier);
                       setStatusResult(lastSubmitted);
                     }}
-                    className="flex-1 py-2.5 px-4 bg-surface-strong hover:bg-hairline text-ink font-semibold rounded-xl text-xs transition-colors cursor-pointer text-center"
+                    className="flex-1 py-2.5 px-4 bg-surface-strong hover:bg-hairline text-ink font-semibold rounded-xl text-xs active:scale-[0.96] transition-transform duration-100 cursor-pointer text-center min-h-[44px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     View Status Tracker
                   </button>
                   <button
                     type="button"
                     onClick={() => setSubmitSuccess(false)}
-                    className="flex-1 py-2.5 px-4 bg-primary hover:bg-primary-active text-white font-semibold rounded-xl text-xs transition-colors cursor-pointer shadow-xs text-center"
+                    className="flex-1 py-2.5 px-4 bg-primary hover:bg-primary-active text-white font-semibold rounded-xl text-xs active:scale-[0.96] transition-transform duration-100 cursor-pointer shadow-xs text-center min-h-[44px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     id="success-modal-close-btn"
                   >
                     Done
@@ -834,7 +945,7 @@ export default function App() {
 
         {/* TAB 1: REGISTRATION & SEAT BLOCKING FORM */}
         {activeTab === "register" && (
-          <section className="bg-white rounded-2xl border border-hairline shadow-xs p-6 md:p-8 relative" id="registration-form-card">
+          <section className="bg-white rounded-2xl border border-hairline shadow-xs p-4 sm:p-6 md:p-8 relative" id="registration-form-card">
 
             <div className="mb-6 space-y-4">
               <div>
@@ -851,7 +962,7 @@ export default function App() {
                 <label className="text-xs font-bold text-ink uppercase tracking-wider block">
                   Registration Category
                 </label>
-                <div className="grid grid-cols-2 gap-2 p-1 bg-surface-soft border border-hairline rounded-xl" id="role-selector">
+                <div className="grid grid-cols-2 gap-2 p-1 bg-surface-soft border border-hairline rounded-xl" id="role-selector" role="group" aria-label="Registration Category">
                   <button
                     type="button"
                     onClick={() => {
@@ -859,13 +970,13 @@ export default function App() {
                       setFieldErrors({});
                       setFormErrorSummary(null);
                     }}
-                    className={`py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer ${
+                    className={`py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer active:scale-[0.96] transition-transform duration-100 min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                       userType === "student"
                         ? "bg-white text-primary shadow-xs border border-hairline"
                         : "text-body hover:text-ink"
                     }`}
                   >
-                    <User className="w-4 h-4" />
+                    <User className="w-4 h-4 flex-shrink-0" />
                     <span>Student</span>
                   </button>
 
@@ -876,13 +987,13 @@ export default function App() {
                       setFieldErrors({});
                       setFormErrorSummary(null);
                     }}
-                    className={`py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer ${
+                    className={`py-2.5 px-4 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer active:scale-[0.96] transition-transform duration-100 min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                       userType === "staff"
                         ? "bg-white text-primary shadow-xs border border-hairline"
                         : "text-body hover:text-ink"
                     }`}
                   >
-                    <ShieldCheck className="w-4 h-4" />
+                    <ShieldCheck className="w-4 h-4 flex-shrink-0" />
                     <span>Staff</span>
                   </button>
                 </div>
@@ -902,11 +1013,11 @@ export default function App() {
                     <label className="text-xs font-bold text-ink uppercase tracking-wider block">
                       Staff Designation Category
                     </label>
-                    <div className="grid grid-cols-2 gap-2 p-1 bg-surface-strong/60 border border-hairline rounded-xl">
+                    <div className="grid grid-cols-2 gap-2 p-1 bg-surface-strong/60 border border-hairline rounded-xl" role="group" aria-label="Staff Designation Category">
                       <button
                         type="button"
                         onClick={() => setStaffCategory("teaching")}
-                        className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        className={`py-2 px-3 rounded-lg text-xs font-semibold cursor-pointer active:scale-[0.96] transition-transform duration-100 min-h-[38px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                           staffCategory === "teaching"
                             ? "bg-white text-ink shadow-xs border border-hairline"
                             : "text-body hover:text-ink"
@@ -917,7 +1028,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setStaffCategory("non-teaching")}
-                        className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                        className={`py-2 px-3 rounded-lg text-xs font-semibold cursor-pointer active:scale-[0.96] transition-transform duration-100 min-h-[38px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                           staffCategory === "non-teaching"
                             ? "bg-white text-ink shadow-xs border border-hairline"
                             : "text-body hover:text-ink"
@@ -957,7 +1068,7 @@ export default function App() {
                 {/* Full Name Field */}
                 <div className="space-y-1.5">
                   <label htmlFor="user-name" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                    {userType === "student" ? "Student Name" : "Staff Name"}
+                    {userType === "student" ? "Student Name" : "Staff Name"} <span className="text-primary">*</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
@@ -966,6 +1077,9 @@ export default function App() {
                     <input
                       id="user-name"
                       type="text"
+                      aria-required="true"
+                      aria-invalid={!!fieldErrors.name}
+                      aria-describedby={fieldErrors.name ? "name-error" : undefined}
                       value={name}
                       onChange={(e) => {
                         setName(e.target.value);
@@ -973,13 +1087,13 @@ export default function App() {
                       }}
                       placeholder={userType === "student" ? "Enter student full name" : "Enter staff full name"}
                       className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
-                        fieldErrors.name ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                        fieldErrors.name ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
                       } focus:outline-none transition-colors duration-100 min-h-[44px]`}
                     />
                   </div>
                   {fieldErrors.name && (
-                    <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
-                      <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.name}
+                    <p id="name-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.name}
                     </p>
                   )}
                 </div>
@@ -987,7 +1101,7 @@ export default function App() {
                 {/* USN Number for Student vs ID Number for Staff */}
                 <div className="space-y-1.5">
                   <label htmlFor="user-identifier" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                    {userType === "student" ? "USN No (12 Characters)" : "Staff ID Number"}
+                    {userType === "student" ? "USN No (12 Characters)" : "Staff ID Number"} <span className="text-primary">*</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
@@ -996,30 +1110,148 @@ export default function App() {
                     <input
                       id="user-identifier"
                       type="text"
+                      aria-required="true"
+                      aria-invalid={!!fieldErrors.identifier}
+                      aria-describedby={fieldErrors.identifier ? "identifier-error" : undefined}
                       value={identifier}
                       onChange={(e) => {
                         setIdentifier(e.target.value);
                         if (fieldErrors.identifier) setFieldErrors(prev => ({ ...prev, identifier: undefined }));
                       }}
-                      placeholder={userType === "student" ? "e.g. 1BY26CS00112" : "Enter Staff ID Number"}
+                      placeholder={userType === "student" ? "Enter 12-character USN" : "Enter Staff ID number"}
                       className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
                         userType === "student" ? "uppercase tabular-nums" : ""
                       } ${
-                        fieldErrors.identifier ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                        fieldErrors.identifier ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
                       } focus:outline-none transition-colors duration-100 min-h-[44px]`}
                     />
                   </div>
                   {fieldErrors.identifier && (
-                    <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
-                      <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.identifier}
+                    <p id="identifier-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.identifier}
                     </p>
                   )}
                 </div>
 
-                {/* Phone Number Field */}
+                {/* Semester & Batch (Student Only) */}
+                {userType === "student" && (
+                  <>
+                    {/* Semester Dropdown */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="user-semester" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                        Semester <span className="text-primary">*</span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
+                          <GraduationCap className="w-4 h-4" />
+                        </div>
+                        <select
+                          id="user-semester"
+                          aria-required="true"
+                          aria-invalid={!!fieldErrors.semester}
+                          aria-describedby={fieldErrors.semester ? "semester-error" : undefined}
+                          value={semester}
+                          onChange={(e) => {
+                            setSemester(e.target.value);
+                            if (fieldErrors.semester) setFieldErrors(prev => ({ ...prev, semester: undefined }));
+                          }}
+                          className={`w-full bg-white text-ink rounded-lg pl-10 pr-10 py-2.5 text-sm border ${
+                            fieldErrors.semester ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
+                          } focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]`}
+                        >
+                          <option value="">-- Select Semester --</option>
+                          <option value="1st Semester">1st Semester</option>
+                          <option value="2nd Semester">2nd Semester</option>
+                          <option value="3rd Semester">3rd Semester</option>
+                          <option value="4th Semester">4th Semester</option>
+                          <option value="5th Semester">5th Semester</option>
+                          <option value="6th Semester">6th Semester</option>
+                          <option value="7th Semester">7th Semester</option>
+                          <option value="8th Semester">8th Semester</option>
+                        </select>
+                        <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-ink">
+                          <ChevronDown className="w-4 h-4" />
+                        </div>
+                      </div>
+                      {fieldErrors.semester && (
+                        <p id="semester-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.semester}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Batch (Manual Input) */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="user-batch" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                        Batch <span className="text-primary">*</span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
+                          <Calendar className="w-4 h-4" />
+                        </div>
+                        <input
+                          id="user-batch"
+                          type="text"
+                          aria-required="true"
+                          aria-invalid={!!fieldErrors.batch}
+                          aria-describedby={fieldErrors.batch ? "batch-error" : undefined}
+                          value={batch}
+                          onChange={(e) => {
+                            setBatch(e.target.value);
+                            if (fieldErrors.batch) setFieldErrors(prev => ({ ...prev, batch: undefined }));
+                          }}
+                          placeholder="Enter batch year or range"
+                          className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border tabular-nums ${
+                            fieldErrors.batch ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
+                          } focus:outline-none transition-colors duration-100 min-h-[44px]`}
+                        />
+                      </div>
+                      {fieldErrors.batch && (
+                        <p id="batch-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                          <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.batch}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* Blood Group (Manual Input) */}
+                <div className="space-y-1.5">
+                  <label htmlFor="user-blood-group" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                    Blood Group <span className="text-primary">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-primary min-w-[40px] justify-center">
+                      <HeartPulse className="w-4 h-4" />
+                    </div>
+                    <input
+                      id="user-blood-group"
+                      type="text"
+                      aria-required="true"
+                      aria-invalid={!!fieldErrors.bloodGroup}
+                      aria-describedby={fieldErrors.bloodGroup ? "bloodgroup-error" : undefined}
+                      value={bloodGroup}
+                      onChange={(e) => {
+                        setBloodGroup(e.target.value);
+                        if (fieldErrors.bloodGroup) setFieldErrors(prev => ({ ...prev, bloodGroup: undefined }));
+                      }}
+                      placeholder="Enter blood group"
+                      className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm uppercase border ${
+                        fieldErrors.bloodGroup ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      } focus:outline-none transition-colors duration-100 min-h-[44px]`}
+                    />
+                  </div>
+                  {fieldErrors.bloodGroup && (
+                    <p id="bloodgroup-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.bloodGroup}
+                    </p>
+                  )}
+                </div>
+
+                {/* Calling Phone Number Field */}
                 <div className="space-y-1.5">
                   <label htmlFor="user-phone" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                    Phone Number (Min 10 Digits)
+                    Phone Number (Calling) <span className="text-primary">*</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
@@ -1028,20 +1260,77 @@ export default function App() {
                     <input
                       id="user-phone"
                       type="tel"
+                      aria-required="true"
+                      aria-invalid={!!fieldErrors.phone}
+                      aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
                       value={phone}
                       onChange={(e) => {
-                        setPhone(e.target.value);
+                        const val = e.target.value;
+                        setPhone(val);
                         if (fieldErrors.phone) setFieldErrors(prev => ({ ...prev, phone: undefined }));
                       }}
                       placeholder="Enter 10-digit mobile number"
                       className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
-                        fieldErrors.phone ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                        fieldErrors.phone ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
                       } focus:outline-none transition-colors duration-100 tabular-nums min-h-[44px]`}
                     />
                   </div>
                   {fieldErrors.phone && (
-                    <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
-                      <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.phone}
+                    <p id="phone-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.phone}
+                    </p>
+                  )}
+                </div>
+
+                {/* Student WhatsApp Number */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="user-whatsapp" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                      Student WhatsApp Number <span className="text-primary">*</span>
+                    </label>
+                    <label className="text-[11px] text-primary flex items-center gap-1.5 cursor-pointer font-medium select-none py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={isWhatsappSame}
+                        onChange={(e) => {
+                          setIsWhatsappSame(e.target.checked);
+                          if (e.target.checked) {
+                            setWhatsappNumber("");
+                            if (fieldErrors.whatsappNumber) setFieldErrors(prev => ({ ...prev, whatsappNumber: undefined }));
+                          }
+                        }}
+                        className="rounded text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                      />
+                      <span>Same as Calling No</span>
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-primary min-w-[40px] justify-center">
+                      <MessageSquare className="w-4 h-4" />
+                    </div>
+                    <input
+                      id="user-whatsapp"
+                      type="tel"
+                      aria-required="true"
+                      aria-invalid={!!fieldErrors.whatsappNumber}
+                      aria-describedby={fieldErrors.whatsappNumber ? "whatsapp-error" : undefined}
+                      disabled={isWhatsappSame}
+                      value={isWhatsappSame ? phone : whatsappNumber}
+                      onChange={(e) => {
+                        setWhatsappNumber(e.target.value);
+                        if (fieldErrors.whatsappNumber) setFieldErrors(prev => ({ ...prev, whatsappNumber: undefined }));
+                      }}
+                      placeholder="Enter 10-digit WhatsApp number"
+                      className={`w-full text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
+                        isWhatsappSame ? "bg-surface-soft/80 cursor-not-allowed opacity-90" : "bg-white"
+                      } ${
+                        fieldErrors.whatsappNumber ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      } focus:outline-none transition-colors duration-100 tabular-nums min-h-[44px]`}
+                    />
+                  </div>
+                  {fieldErrors.whatsappNumber && (
+                    <p id="whatsapp-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.whatsappNumber}
                     </p>
                   )}
                 </div>
@@ -1049,7 +1338,7 @@ export default function App() {
                 {/* Email Field */}
                 <div className="space-y-1.5">
                   <label htmlFor="user-email" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                    Email Address
+                    Student Mail ID <span className="text-primary">*</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
@@ -1058,34 +1347,169 @@ export default function App() {
                     <input
                       id="user-email"
                       type="email"
+                      aria-required="true"
+                      aria-invalid={!!fieldErrors.email}
+                      aria-describedby={fieldErrors.email ? "email-error" : undefined}
                       value={email}
                       onChange={(e) => {
                         setEmail(e.target.value);
                         if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined }));
                       }}
-                      placeholder="Enter email address (e.g. user@bmsit.in)"
+                      placeholder="Enter student email address"
                       className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
-                        fieldErrors.email ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                        fieldErrors.email ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
                       } focus:outline-none transition-colors duration-100 min-h-[44px]`}
                     />
                   </div>
                   {fieldErrors.email && (
-                    <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
-                      <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.email}
+                    <p id="email-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.email}
                     </p>
                   )}
                 </div>
 
-                {/* Route Dropdown Menu with Live Seat Check */}
+                {/* Guardian Mobile Number (M/F) (Student Only) */}
+                {userType === "student" && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="user-guardian" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                        Guardian Mobile Number (M/F) <span className="text-primary">*</span>
+                      </label>
+                      <div className="flex items-center gap-1 text-[11px]" role="group" aria-label="Guardian Relation">
+                        <button
+                          type="button"
+                          onClick={() => setGuardianRelation("Father")}
+                          className={`px-2.5 py-1 rounded-md cursor-pointer text-xs font-semibold active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${guardianRelation === "Father" ? "bg-primary text-white shadow-xs" : "bg-surface-strong text-body hover:text-ink"}`}
+                        >
+                          Father
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGuardianRelation("Mother")}
+                          className={`px-2.5 py-1 rounded-md cursor-pointer text-xs font-semibold active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${guardianRelation === "Mother" ? "bg-primary text-white shadow-xs" : "bg-surface-strong text-body hover:text-ink"}`}
+                        >
+                          Mother
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGuardianRelation("Guardian")}
+                          className={`px-2.5 py-1 rounded-md cursor-pointer text-xs font-semibold active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${guardianRelation === "Guardian" ? "bg-primary text-white shadow-xs" : "bg-surface-strong text-body hover:text-ink"}`}
+                        >
+                          Guardian
+                        </button>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <input
+                        id="user-guardian"
+                        type="tel"
+                        aria-required="true"
+                        aria-invalid={!!fieldErrors.guardianPhone}
+                        aria-describedby={fieldErrors.guardianPhone ? "guardian-error" : undefined}
+                        value={guardianPhone}
+                        onChange={(e) => {
+                          setGuardianPhone(e.target.value);
+                          if (fieldErrors.guardianPhone) setFieldErrors(prev => ({ ...prev, guardianPhone: undefined }));
+                        }}
+                        placeholder={`Enter 10-digit ${guardianRelation.toLowerCase()}'s mobile number`}
+                        className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
+                          fieldErrors.guardianPhone ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        } focus:outline-none transition-colors duration-100 tabular-nums min-h-[44px]`}
+                      />
+                    </div>
+                    {fieldErrors.guardianPhone && (
+                      <p id="guardian-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                        <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.guardianPhone}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Emergency Contact Number */}
+                <div className="space-y-1.5">
+                  <label htmlFor="user-emergency" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                    Emergency Contact Number <span className="text-primary">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-primary min-w-[40px] justify-center">
+                      <PhoneCall className="w-4 h-4" />
+                    </div>
+                    <input
+                      id="user-emergency"
+                      type="tel"
+                      aria-required="true"
+                      aria-invalid={!!fieldErrors.emergencyContact}
+                      aria-describedby={fieldErrors.emergencyContact ? "emergency-error" : undefined}
+                      value={emergencyContact}
+                      onChange={(e) => {
+                        setEmergencyContact(e.target.value);
+                        if (fieldErrors.emergencyContact) setFieldErrors(prev => ({ ...prev, emergencyContact: undefined }));
+                      }}
+                      placeholder="Enter 10-digit emergency contact number"
+                      className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
+                        fieldErrors.emergencyContact ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      } focus:outline-none transition-colors duration-100 tabular-nums min-h-[44px]`}
+                    />
+                  </div>
+                  {fieldErrors.emergencyContact && (
+                    <p id="emergency-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.emergencyContact}
+                    </p>
+                  )}
+                </div>
+
+                {/* Present Address */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label htmlFor="user-address" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                    Present Address <span className="text-primary">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute top-3 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
+                      <Home className="w-4 h-4" />
+                    </div>
+                    <textarea
+                      id="user-address"
+                      rows={2}
+                      aria-required="true"
+                      aria-invalid={!!fieldErrors.presentAddress}
+                      aria-describedby={fieldErrors.presentAddress ? "address-error" : undefined}
+                      value={presentAddress}
+                      onChange={(e) => {
+                        setPresentAddress(e.target.value);
+                        if (fieldErrors.presentAddress) setFieldErrors(prev => ({ ...prev, presentAddress: undefined }));
+                      }}
+                      placeholder="Enter present residential address"
+                      className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
+                        fieldErrors.presentAddress ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      } focus:outline-none transition-colors duration-100 min-h-[60px]`}
+                    />
+                  </div>
+                  {fieldErrors.presentAddress && (
+                    <p id="address-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.presentAddress}
+                    </p>
+                  )}
+                </div>
+
+                {/* Route Dropdown Menu */}
                 <div className="space-y-1.5 md:col-span-2">
                   <div className="flex items-center justify-between">
                     <label htmlFor="user-route" className="text-xs font-bold text-ink uppercase tracking-wider block">
                       Select Transport Route
                     </label>
-                    <span className="text-[11px] text-muted flex items-center gap-1">
-                      <RefreshCw className={`w-3 h-3 ${isLoading ? "animate-spin text-primary" : ""}`} />
-                      Live Dedicated Bus Capacity
-                    </span>
+                    <a
+                      href="https://bmsit.ac.in/pdf/busRoutes.pdf"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline inline-flex items-center gap-1 font-medium"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Official Routes PDF</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
                   </div>
 
                   <div className="relative">
@@ -1094,6 +1518,9 @@ export default function App() {
                     </div>
                     <select
                       id="user-route"
+                      aria-required="true"
+                      aria-invalid={!!fieldErrors.route}
+                      aria-describedby={fieldErrors.route ? "route-error" : undefined}
                       value={route}
                       onChange={(e) => {
                         setRoute(e.target.value);
@@ -1101,7 +1528,7 @@ export default function App() {
                         if (fieldErrors.route) setFieldErrors(prev => ({ ...prev, route: undefined }));
                       }}
                       className={`w-full bg-white text-ink rounded-lg pl-10 pr-10 py-2.5 text-sm border ${
-                        fieldErrors.route ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                        fieldErrors.route ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
                       } focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]`}
                     >
                       <option value="" disabled>-- Select a route from BMSIT&M schedule --</option>
@@ -1201,13 +1628,16 @@ export default function App() {
                     {selectedRouteObj ? (
                       <select
                         id="user-boarding"
+                        aria-required="true"
+                        aria-invalid={!!fieldErrors.boardingPoint}
+                        aria-describedby={fieldErrors.boardingPoint ? "boarding-error" : undefined}
                         value={boardingPoint}
                         onChange={(e) => {
                           setBoardingPoint(e.target.value);
                           if (fieldErrors.boardingPoint) setFieldErrors(prev => ({ ...prev, boardingPoint: undefined }));
                         }}
                         className={`w-full bg-white text-ink rounded-lg pl-10 pr-10 py-2.5 text-sm border ${
-                          fieldErrors.boardingPoint ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                          fieldErrors.boardingPoint ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
                         } focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]`}
                       >
                         <option value="">-- Select your pickup stop along the route --</option>
@@ -1221,6 +1651,9 @@ export default function App() {
                       <input
                         id="user-boarding"
                         type="text"
+                        aria-required="true"
+                        aria-invalid={!!fieldErrors.boardingPoint}
+                        aria-describedby={fieldErrors.boardingPoint ? "boarding-error" : undefined}
                         value={boardingPoint}
                         onChange={(e) => {
                           setBoardingPoint(e.target.value);
@@ -1228,7 +1661,7 @@ export default function App() {
                         }}
                         placeholder="Select a route above to choose your pickup point or type here"
                         className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
-                          fieldErrors.boardingPoint ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
+                          fieldErrors.boardingPoint ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
                         } focus:outline-none transition-colors duration-100 min-h-[44px]`}
                       />
                     )}
@@ -1239,15 +1672,15 @@ export default function App() {
                     )}
                   </div>
                   {fieldErrors.boardingPoint && (
-                    <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
-                      <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.boardingPoint}
+                    <p id="boarding-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                      <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.boardingPoint}
                     </p>
                   )}
                 </div>
 
               </div>
 
-              {/* PAYMENT INITIATION SECTION */}
+              {/* PAYMENT SECTION */}
               <div className="mt-8 pt-6 border-t border-hairline space-y-4" id="payment-initiation-section">
                 <div>
                   <div className="flex items-center gap-2">
@@ -1255,105 +1688,120 @@ export default function App() {
                       <CreditCard className="w-4 h-4" />
                     </span>
                     <h3 className="text-sm font-bold text-ink uppercase tracking-wider">
-                      Transport Fee & Payment Initiation
+                      Payment Mode & Seat Confirmation
                     </h3>
                   </div>
                   <p className="text-xs text-body mt-0.5">
-                    Click the official BMSIT link to complete payment, then enter your transaction ID to immediately block your seat.
+                    Select your payment method and submit your transaction ID to block your seat.
                   </p>
                 </div>
 
-                {/* BMSIT Official Payment Portal Action Card */}
-                <div className="p-5 bg-gradient-to-br from-surface-soft via-white to-surface-soft rounded-2xl border border-hairline space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <span className="text-xs text-muted block font-medium">Annual Transport Fee</span>
-                      <span className="text-2xl font-bold text-ink tracking-tight tabular-nums">₹28,000</span>
-                      <span className="text-xs text-body ml-1.5">/ Academic Year</span>
+                {/* Payment Card */}
+                <div className="p-4 sm:p-5 bg-surface-soft rounded-2xl border border-hairline space-y-4">
+                  {/* Payment Mode Selector */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="payment-mode" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                      Payment Mode
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="payment-mode"
+                        value={paymentMode}
+                        onChange={(e) => setPaymentMode(e.target.value)}
+                        className="w-full bg-white text-ink rounded-lg px-3.5 py-2.5 text-sm border border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none appearance-none cursor-pointer transition-colors duration-100 min-h-[44px]"
+                      >
+                        <option value="UPI">UPI (Google Pay / PhonePe / Paytm / BHIM)</option>
+                        <option value="Net Banking / NEFT">Net Banking / NEFT / RTGS</option>
+                        <option value="Cash / Bank Challan">Cash / Bank Challan</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-ink">
+                        <ChevronDown className="w-4 h-4" />
+                      </div>
                     </div>
+                  </div>
 
-                    {/* Official Link Button */}
-                    <a
-                      href="https://bmsit.ac.in"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setHasVisitedPortal(true)}
-                      className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-active text-white font-semibold text-xs rounded-pill shadow-xs transition-transform duration-100 active:scale-[0.97] min-h-[42px]"
-                      id="pay-via-bmsit-btn"
+                  {/* QR Code Section (Displayed when UPI is selected) */}
+                  {paymentMode === "UPI" && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 sm:p-5 bg-white rounded-xl border border-hairline flex flex-col sm:flex-row items-center gap-4 sm:gap-5 text-center sm:text-left shadow-2xs"
+                      id="upi-qr-card"
                     >
-                      <span>Pay via Official BMSIT Web Page</span>
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </div>
-
-                  <div className="p-3 bg-white rounded-xl border border-hairline text-xs text-body flex items-start gap-2.5">
-                    <Info className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                    <p className="leading-relaxed text-[11px]">
-                      <strong>Payment Procedure:</strong> Click the button above to access the official BMSIT portal. Pay using your student USN / application number. Once the transaction succeeds, copy the <strong>Transaction ID / UTR Number</strong> from your payment receipt and enter it below.
-                    </p>
-                  </div>
-
-                  {/* Payment Details Inputs */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    {/* Payment Mode Selector */}
-                    <div className="space-y-1.5">
-                      <label htmlFor="payment-mode" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                        Payment Mode Used
-                      </label>
-                      <div className="relative">
-                        <select
-                          id="payment-mode"
-                          value={paymentMode}
-                          onChange={(e) => setPaymentMode(e.target.value)}
-                          className="w-full bg-white text-ink rounded-lg px-3.5 py-2.5 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none appearance-none cursor-pointer transition-colors min-h-[44px]"
-                        >
-                          <option value="BMSIT Online Fee Portal">BMSIT Online Fee Portal Gateway</option>
-                          <option value="UPI / QR Code">UPI (Google Pay / PhonePe / Paytm)</option>
-                          <option value="Net Banking / NEFT">Net Banking / NEFT / RTGS</option>
-                          <option value="College Bank Challan">Official College Bank Challan</option>
-                        </select>
-                        <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-ink">
-                          <ChevronDown className="w-4 h-4" />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Transaction ID / UTR */}
-                    <div className="space-y-1.5">
-                      <label htmlFor="transaction-id" className="text-xs font-bold text-ink uppercase tracking-wider block">
-                        Transaction ID / UTR Number
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
-                          <CreditCard className="w-4 h-4" />
-                        </div>
-                        <input
-                          id="transaction-id"
-                          type="text"
-                          value={transactionId}
-                          onChange={(e) => {
-                            setTransactionId(e.target.value);
-                            if (fieldErrors.transactionId) setFieldErrors(prev => ({ ...prev, transactionId: undefined }));
+                      {/* QR Box */}
+                      <div className="w-40 h-40 bg-surface-soft rounded-xl border border-hairline flex flex-col items-center justify-center p-2 flex-shrink-0 relative overflow-hidden group shadow-2xs">
+                        <img
+                          src="/payment-qr.png"
+                          alt="UPI Payment QR Code"
+                          className="w-full h-full object-contain rounded-lg outline outline-1 outline-black/10"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            target.style.display = "none";
+                            const fallback = target.parentElement?.querySelector(".qr-placeholder-ui");
+                            if (fallback) (fallback as HTMLElement).style.display = "flex";
                           }}
-                          placeholder="e.g. UTR240987654321 or Bank Ref No"
-                          className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border ${
-                            fieldErrors.transactionId ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-2 focus:border-primary"
-                          } focus:outline-none font-mono transition-colors min-h-[44px]`}
                         />
+                        <div className="qr-placeholder-ui hidden w-full h-full flex-col items-center justify-center text-primary bg-primary/5 rounded-lg p-2">
+                          <QrCode className="w-16 h-16 text-primary stroke-[1.5]" />
+                          <span className="text-[11px] font-bold text-ink mt-1">UPI QR Code</span>
+                          <span className="text-[9px] text-muted">Scan to Pay</span>
+                        </div>
                       </div>
-                      {fieldErrors.transactionId && (
-                        <p className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
-                          <AlertCircle className="w-3 h-3 inline" /> {fieldErrors.transactionId}
+
+                      <div className="space-y-2 flex-1">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-green-50 text-emerald-700 border border-green-200">
+                          <CheckCircle className="w-3 h-3 flex-shrink-0" />
+                          <span>UPI QR Payment</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-ink">Scan & Pay using any UPI App</h4>
+                        <p className="text-xs text-body leading-relaxed">
+                          Open <strong>Google Pay</strong>, <strong>PhonePe</strong>, <strong>Paytm</strong>, or your mobile banking UPI app to scan and complete payment.
                         </p>
-                      )}
+                        <p className="text-[11px] text-muted">
+                          After successful payment, please copy your <strong>12-digit UPI Reference / UTR Number</strong> and enter it below.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Transaction ID / UTR Input */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="transaction-id" className="text-xs font-bold text-ink uppercase tracking-wider block">
+                      Transaction ID / UTR Number <span className="text-primary">*</span>
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-muted min-w-[40px] justify-center">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <input
+                        id="transaction-id"
+                        type="text"
+                        aria-required="true"
+                        aria-invalid={!!fieldErrors.transactionId}
+                        aria-describedby={fieldErrors.transactionId ? "transaction-error" : undefined}
+                        value={transactionId}
+                        onChange={(e) => {
+                          setTransactionId(e.target.value);
+                          if (fieldErrors.transactionId) setFieldErrors(prev => ({ ...prev, transactionId: undefined }));
+                        }}
+                        placeholder="Enter 12-digit UTR or transaction number"
+                        className={`w-full bg-white text-ink rounded-lg pl-10 pr-4 py-2.5 text-sm border font-mono ${
+                          fieldErrors.transactionId ? "border-semantic-down focus:border-semantic-down ring-1 ring-semantic-down/30" : "border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20"
+                        } focus:outline-none transition-colors duration-100 min-h-[44px]`}
+                      />
                     </div>
+                    {fieldErrors.transactionId && (
+                      <p id="transaction-error" className="text-xs text-semantic-down mt-1 flex items-center gap-1 font-medium">
+                        <AlertCircle className="w-3 h-3 inline flex-shrink-0" /> {fieldErrors.transactionId}
+                      </p>
+                    )}
                   </div>
 
                   {/* Seat Blocking Assurance Banner */}
                   <div className="p-3 bg-[#fff9ea] border border-[#f5df9e] rounded-xl flex items-start gap-2 text-xs text-[#8a5d00]">
                     <Lock className="w-4 h-4 flex-shrink-0 mt-0.5 text-accent-yellow" />
                     <p className="leading-relaxed">
-                      <strong>Immediate Seat Blocking:</strong> As soon as you enter your details and submit, your seat on dedicated bus <strong>{selectedRouteObj ? selectedRouteObj.busNo : "(Selected Route)"}</strong> will be <strong>BLOCKED</strong> so no other student can claim it. Final approval is granted once the admin verifies the Transaction ID.
+                      <strong>Seat Reservation:</strong> Submitting instantly blocks your seat on bus <strong>{selectedRouteObj ? selectedRouteObj.busNo : "selected route"}</strong>. Final approval is issued after admin verification.
                     </p>
                   </div>
                 </div>
@@ -1402,7 +1850,7 @@ export default function App() {
 
         {/* TAB 2: CHECK SEAT STATUS TRACKER */}
         {activeTab === "status" && (
-          <section className="bg-white rounded-2xl border border-hairline shadow-xs p-6 md:p-8 space-y-6" id="status-tracker-section">
+          <section className="bg-white rounded-2xl border border-hairline shadow-xs p-4 sm:p-6 md:p-8 space-y-6" id="status-tracker-section">
             <div>
               <h2 className="text-lg font-medium text-ink flex items-center gap-2">
                 <Search className="w-5 h-5 text-primary" />
@@ -1421,15 +1869,16 @@ export default function App() {
                 </div>
                 <input
                   type="text"
+                  aria-label="Search status by USN, Mobile Number, or Transaction ID"
                   value={statusSearchQuery}
                   onChange={(e) => setStatusSearchQuery(e.target.value)}
-                  placeholder="Enter USN (e.g. 1BY26CS00112) or Mobile No"
-                  className="w-full bg-white text-ink rounded-xl pl-10 pr-4 py-3 text-sm border border-hairline focus:border-2 focus:border-primary focus:outline-none transition-colors"
+                  placeholder="Enter USN, mobile number, or transaction ID"
+                  className="w-full bg-white text-ink rounded-xl pl-10 pr-4 py-3 text-sm border border-hairline focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-colors duration-100 min-h-[46px]"
                 />
               </div>
               <button
                 type="submit"
-                className="px-6 py-3 bg-primary hover:bg-primary-active text-white rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 shadow-xs cursor-pointer min-h-[46px]"
+                className="px-6 py-3 bg-primary hover:bg-primary-active text-white rounded-xl text-sm font-semibold active:scale-[0.96] transition-transform duration-100 flex items-center justify-center gap-2 shadow-xs cursor-pointer min-h-[46px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
                 <span>Check Status</span>
                 <ArrowRight className="w-4 h-4" />
@@ -1509,8 +1958,53 @@ export default function App() {
                         {statusResult.transactionId || "N/A"}
                       </span>
                       <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">
-                        ₹{statusResult.feeAmount?.toLocaleString() || "28,000"} Paid via {statusResult.paymentMode}
+                        Paid via {statusResult.paymentMode}
                       </span>
+                    </div>
+                  </div>
+
+                  {/* Registered Contact & Profile Details */}
+                  <div className="p-4 bg-surface-soft/60 rounded-xl border border-hairline space-y-2.5 text-xs">
+                    <span className="text-xs font-bold text-ink uppercase tracking-wider block">
+                      Student & Contact Profile Summary
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                      <div>
+                        <span className="text-muted block text-[11px]">Semester & Batch</span>
+                        <span className="font-semibold text-ink">
+                          {statusResult.semester ? `${statusResult.semester} (${statusResult.batch})` : "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted block text-[11px]">Blood Group</span>
+                        <span className="font-bold text-primary">
+                          {statusResult.bloodGroup || "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted block text-[11px]">WhatsApp Number</span>
+                        <span className="font-medium text-ink tabular-nums">
+                          {statusResult.whatsappNumber || statusResult.phone}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-muted block text-[11px]">Emergency Contact</span>
+                        <span className="font-medium text-ink tabular-nums">
+                          {statusResult.emergencyContact || "N/A"}
+                        </span>
+                      </div>
+                      {statusResult.guardianPhone && (
+                        <div className="col-span-2">
+                          <span className="text-muted block text-[11px]">Guardian Phone ({statusResult.guardianRelation || "Parent"})</span>
+                          <span className="font-medium text-ink tabular-nums">{statusResult.guardianPhone}</span>
+                        </div>
+                      )}
+                      {statusResult.presentAddress && (
+                        <div className="col-span-2">
+                          <span className="text-muted block text-[11px]">Present Address</span>
+                          <span className="font-medium text-ink block truncate">{statusResult.presentAddress}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1574,9 +2068,21 @@ export default function App() {
         )}
 
         {/* Footer info */}
-        <footer className="pt-4 pb-12 text-center text-xs text-muted border-t border-hairline">
+        <footer className="pt-4 pb-12 text-center text-xs text-muted border-t border-hairline space-y-1.5">
           <p>© {new Date().getFullYear()} BMS Institute of Technology & Management • Campus Transport Office</p>
-          <p className="mt-1">For bus coordination queries, please reach out to your respective route coordinator.</p>
+          <p>
+            <a
+              href="https://bmsit.ac.in/pdf/busRoutes.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline inline-flex items-center gap-1 font-medium"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Official BMSIT Bus Routes & Timings (PDF Reference)</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </p>
+          <p className="text-[11px]">For bus coordination queries, please reach out to your respective route coordinator.</p>
         </footer>
 
       </div>
