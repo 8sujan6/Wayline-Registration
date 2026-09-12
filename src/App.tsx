@@ -32,7 +32,8 @@ import {
   FileText
 } from "lucide-react";
 import { db } from "./firebase";
-import { collection, addDoc, getDocs, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, getDocs, onSnapshot, serverTimestamp } from "firebase/firestore";
+import paymentQrCode from "./assets/payment-qr.png";
 
 interface RegistrationRecord {
   id: string;
@@ -458,51 +459,82 @@ export default function App() {
   const currentAvailableSeats = selectedRouteObj ? getAvailableSeats(selectedRouteObj) : 0;
   const isSelectedBusFull = selectedRouteObj ? currentAvailableSeats <= 0 : false;
 
-  // Fetch registered list from Firestore
-  const fetchRegistrations = async () => {
-    setIsLoading(true);
-    try {
-      const snapshot = await getDocs(collection(db, "registrations"));
-      const list = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          userType: data.userType || "student",
-          staffCategory: data.staffCategory,
-          name: data.studentName || data.name || data.staffName || "",
-          identifier: data.usn || data.idNumber || data.identifier || "",
-          phone: data.phone || "",
-          whatsappNumber: data.whatsappNumber || data.whatsapp || data.phone || "",
-          email: data.email || "",
-          semester: data.semester || "",
-          batch: data.batch || "",
-          presentAddress: data.presentAddress || data.address || "",
-          guardianPhone: data.guardianPhone || data.guardianContact || "",
-          guardianRelation: data.guardianRelation || "Father",
-          emergencyContact: data.emergencyContact || data.emergencyPhone || "",
-          bloodGroup: data.bloodGroup || "",
-          boardingPoint: data.boardingPoint || "",
-          route: data.routeNo || data.route || "",
-          busNo: data.busNo || "",
-          transactionId: data.transactionId || "",
-          paymentMode: data.paymentMode || "BMSIT Online Fee Portal",
-          feeAmount: data.feeAmount || 28000,
-          seatStatus: data.seatStatus || "Seat Blocked",
-          paymentStatus: data.paymentStatus || "Payment Initiated",
-          createdAt: data.submittedAt ? (data.submittedAt.toDate ? data.submittedAt.toDate().toISOString() : data.submittedAt) : ""
-        } as RegistrationRecord;
-      });
-      setRegistrations(list);
-    } catch (error) {
-      console.error("Failed to load registrations from Firestore", error);
-    } finally {
-      setIsLoading(false);
-    }
+  // Helper parser for Firestore document data
+  const parseRegistrationDoc = (id: string, data: any): RegistrationRecord => {
+    const isApproved =
+      data.seatStatus === "Approved" ||
+      data.seatStatus === "Confirmed" ||
+      data.status === "Approved" ||
+      data.status === "approved" ||
+      data.isApproved === true ||
+      data.approved === true ||
+      data.approvalStatus === "Approved" ||
+      data.verificationStatus === "Approved";
+
+    const isPaymentVerified =
+      data.paymentStatus === "Verified" ||
+      data.paymentStatus === "Approved" ||
+      data.paymentStatus === "Paid" ||
+      data.paymentStatus === "Success" ||
+      data.paymentVerified === true ||
+      isApproved;
+
+    return {
+      id,
+      userType: data.userType || "student",
+      staffCategory: data.staffCategory,
+      name: data.studentName || data.name || data.staffName || "",
+      identifier: data.usn || data.idNumber || data.identifier || "",
+      phone: data.phone || "",
+      whatsappNumber: data.whatsappNumber || data.whatsapp || data.phone || "",
+      email: data.email || "",
+      semester: data.semester || "",
+      batch: data.batch || "",
+      presentAddress: data.presentAddress || data.address || "",
+      guardianPhone: data.guardianPhone || data.guardianContact || "",
+      guardianRelation: data.guardianRelation || "Father",
+      emergencyContact: data.emergencyContact || data.emergencyPhone || "",
+      bloodGroup: data.bloodGroup || "",
+      boardingPoint: data.boardingPoint || "",
+      route: data.routeNo || data.route || "",
+      busNo: data.busNo || "",
+      transactionId: data.transactionId || "",
+      paymentMode: data.paymentMode || "UPI",
+      feeAmount: data.feeAmount || 28000,
+      seatStatus: isApproved ? "Approved" : (data.seatStatus || "Seat Blocked"),
+      paymentStatus: isPaymentVerified ? "Verified" : (data.paymentStatus || "Payment Initiated"),
+      createdAt: data.submittedAt ? (data.submittedAt.toDate ? data.submittedAt.toDate().toISOString() : data.submittedAt) : (data.createdAt || "")
+    };
   };
 
+  // Real-time Firestore sync: updates instantly whenever an admin approves or modifies any registration
   useEffect(() => {
-    fetchRegistrations();
+    setIsLoading(true);
+    const unsubscribe = onSnapshot(collection(db, "registrations"), (snapshot) => {
+      const list = snapshot.docs.map(doc => parseRegistrationDoc(doc.id, doc.data()));
+      setRegistrations(list);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Failed to sync registrations in real-time from Firestore", error);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  // Automatically update the displayed status result as soon as approval occurs in Firestore
+  useEffect(() => {
+    if (statusResult && statusResult !== "not_found") {
+      const match = registrations.find(r =>
+        (statusResult.id && r.id === statusResult.id) ||
+        (statusResult.identifier && r.identifier.toLowerCase() === statusResult.identifier.toLowerCase()) ||
+        (statusResult.transactionId && r.transactionId.toLowerCase() === statusResult.transactionId.toLowerCase())
+      );
+      if (match && (match.seatStatus !== statusResult.seatStatus || match.paymentStatus !== statusResult.paymentStatus || match.id !== statusResult.id)) {
+        setStatusResult(match);
+      }
+    }
+  }, [registrations, statusResult]);
 
   // Comprehensive Field Validation Function
   const validateForm = (): boolean => {
@@ -751,8 +783,7 @@ export default function App() {
       setFieldErrors({});
       setFormErrorSummary(null);
 
-      // Refresh records list
-      fetchRegistrations();
+      // Refresh records list is handled automatically in real-time via onSnapshot
     } catch (error) {
       console.error("Submission error details:", error);
       setFormErrorSummary(error instanceof Error ? `Failed to submit: ${error.message}` : "Failed to submit registration. Please check your connection.");
@@ -761,16 +792,21 @@ export default function App() {
     }
   };
 
-  // Status Lookup Handler
+  // Status Lookup Handler with flexible matching
   const handleStatusLookup = (e: React.FormEvent) => {
     e.preventDefault();
-    const query = statusSearchQuery.trim().toLowerCase();
+    const rawQuery = statusSearchQuery.trim();
+    const query = rawQuery.toLowerCase();
+    const cleanDigits = rawQuery.replace(/\D/g, "");
     if (!query) return;
 
     const match = registrations.find(r => 
       r.identifier.toLowerCase() === query || 
-      r.phone.replace(/\D/g, "") === query.replace(/\D/g, "") ||
-      r.transactionId.toLowerCase() === query
+      (cleanDigits && cleanDigits.length >= 8 && r.phone.replace(/\D/g, "").includes(cleanDigits)) ||
+      (cleanDigits && cleanDigits.length >= 8 && (r.whatsappNumber || "").replace(/\D/g, "").includes(cleanDigits)) ||
+      (cleanDigits && cleanDigits.length >= 8 && (r.guardianPhone || "").replace(/\D/g, "").includes(cleanDigits)) ||
+      r.transactionId.toLowerCase() === query ||
+      r.id.toLowerCase() === query
     );
 
     if (match) {
@@ -1731,7 +1767,7 @@ export default function App() {
                       {/* QR Box */}
                       <div className="w-40 h-40 bg-surface-soft rounded-xl border border-hairline flex flex-col items-center justify-center p-2 flex-shrink-0 relative overflow-hidden group shadow-2xs">
                         <img
-                          src="/payment-qr.png"
+                          src={paymentQrCode}
                           alt="UPI Payment QR Code"
                           className="w-full h-full object-contain rounded-lg outline outline-1 outline-black/10"
                           onError={(e) => {
